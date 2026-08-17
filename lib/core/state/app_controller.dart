@@ -166,21 +166,31 @@ class AppController extends ChangeNotifier {
       errorMessage = null;
       notifyListeners();
     }
+    ApiException? refreshError;
     try {
-      final results = await Future.wait([
-        (user?.canReview ?? false) ? _api.getForms() : _api.getAssignedForms(),
-        _api.getSubmissions(mine: !(user?.canReview ?? false)),
-      ]);
-      assignments = results[0] as List<FieldAssignment>;
-      submissions = results[1] as List<SubmissionRecord>;
-      await Future.wait([
-        _store.saveAssignments(assignments),
-        _store.saveSubmissions(submissions),
-      ]);
-      lastSyncedAt = DateTime.now();
-      if (outbox.isNotEmpty) await syncOutbox();
-    } on ApiException catch (error) {
-      errorMessage = error.message;
+      try {
+        assignments = (user?.canReview ?? false)
+            ? await _api.getForms()
+            : await _api.getAssignedForms();
+        await _store.saveAssignments(assignments);
+      } on ApiException catch (error) {
+        refreshError = error;
+      }
+      try {
+        submissions = await _api.getSubmissions(
+          mine: !(user?.canReview ?? false),
+        );
+        await _store.saveSubmissions(submissions);
+      } on ApiException catch (error) {
+        refreshError ??= error;
+      }
+      if (assignments.isNotEmpty || submissions.isNotEmpty) {
+        lastSyncedAt = DateTime.now();
+        if (outbox.isNotEmpty) await syncOutbox();
+      }
+      if (refreshError != null) {
+        errorMessage = refreshError.message;
+      }
     } finally {
       isRefreshing = false;
       notifyListeners();
