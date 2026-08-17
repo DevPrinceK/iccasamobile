@@ -10,6 +10,7 @@
     <application
         android:label="ICCASA Field"
         android:name="${applicationName}"
+        android:usesCleartextTraffic="false"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

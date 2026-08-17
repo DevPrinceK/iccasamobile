@@ -45,12 +45,12 @@ class LocalStore {
     _ownerId = null;
   }
 
-  List<FieldAssignment> readAssignments() => decodeJsonList(
-    _preferences.getString(_scoped(_formsKey)),
+  Future<List<FieldAssignment>> readAssignments() async => decodeJsonList(
+    await _readSecure(_scoped(_formsKey)),
   ).map(FieldAssignment.fromJson).toList();
 
   Future<void> saveAssignments(List<FieldAssignment> values) =>
-      _preferences.setString(
+      _writeSecure(
         _scoped(_formsKey),
         encodeJsonList(values, (item) => item.toJson()),
       );
@@ -95,7 +95,7 @@ class LocalStore {
 
   Future<void> clearOperationalData() async {
     await Future.wait([
-      _preferences.remove(_scoped(_formsKey)),
+      _deleteSecure(_scoped(_formsKey)),
       _deleteSecure(_scoped(_submissionsKey)),
       _deleteSecure(_scoped(_draftsKey)),
       _deleteSecure(_scoped(_outboxKey)),
@@ -105,28 +105,32 @@ class LocalStore {
   String _scoped(String key) => '${key}_${_ownerId ?? 'signed_out'}';
 
   Future<String?> _readSecure(String key) async {
-    try {
-      return await _secureStorage.read(key: key) ?? _preferences.getString(key);
-    } catch (_) {
-      return _preferences.getString(key);
+    final secureValue = await _secureStorage.read(key: key);
+    if (secureValue != null) return secureValue;
+    final legacyValue = _preferences.getString(key);
+    if (legacyValue != null) {
+      try {
+        await _secureStorage.write(key: key, value: legacyValue);
+      } finally {
+        await _preferences.remove(key);
+      }
     }
+    return legacyValue;
   }
 
   Future<void> _writeSecure(String key, String value) async {
     try {
       await _secureStorage.write(key: key, value: value);
+    } finally {
       await _preferences.remove(key);
-    } catch (_) {
-      await _preferences.setString(key, value);
     }
   }
 
   Future<void> _deleteSecure(String key) async {
     try {
       await _secureStorage.delete(key: key);
-    } catch (_) {
-      // The preferences fallback is removed below.
+    } finally {
+      await _preferences.remove(key);
     }
-    await _preferences.remove(key);
   }
 }

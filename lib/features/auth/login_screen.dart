@@ -180,24 +180,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               child: TextButton(
                                 onPressed: controller.isBusy
                                     ? null
-                                    : () => showDialog<void>(
-                                        context: context,
-                                        builder: (context) => AlertDialog(
-                                          title: const Text(
-                                            'Reset your password',
-                                          ),
-                                          content: const Text(
-                                            'Use the ICCASA dashboard password reset or contact your administrator for account support.',
-                                          ),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(context),
-                                              child: const Text('Close'),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
+                                    : () async {
+                                        final changed = await showDialog<bool>(
+                                          context: context,
+                                          barrierDismissible: false,
+                                          builder: (context) =>
+                                              _PasswordResetDialog(
+                                                controller: controller,
+                                                initialEmail:
+                                                    _emailController.text,
+                                              ),
+                                        );
+                                        if (!context.mounted) return;
+                                        if (changed == true) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    'Password updated. You can now sign in.',
+                                                  ),
+                                                ),
+                                              );
+                                        }
+                                      },
                                 child: const Text('Forgot password?'),
                               ),
                             ),
@@ -258,6 +263,216 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ),
     );
   }
+}
+
+class _PasswordResetDialog extends StatefulWidget {
+  const _PasswordResetDialog({
+    required this.controller,
+    required this.initialEmail,
+  });
+
+  final AppController controller;
+  final String initialEmail;
+
+  @override
+  State<_PasswordResetDialog> createState() => _PasswordResetDialogState();
+}
+
+class _PasswordResetDialogState extends State<_PasswordResetDialog> {
+  late final TextEditingController _email;
+  final _code = TextEditingController();
+  final _password = TextEditingController();
+  final _confirmation = TextEditingController();
+  int _step = 0;
+  bool _busy = false;
+  bool _obscure = true;
+  String? _resetToken;
+  String? _error;
+  String? _developmentCode;
+
+  @override
+  void initState() {
+    super.initState();
+    _email = TextEditingController(text: widget.initialEmail.trim());
+  }
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _code.dispose();
+    _password.dispose();
+    _confirmation.dispose();
+    super.dispose();
+  }
+
+  Future<void> _continue() async {
+    final email = _email.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = 'Enter a valid email address.');
+      return;
+    }
+    if (_step == 1 && _code.text.trim().length != 6) {
+      setState(() => _error = 'Enter the six-digit reset code.');
+      return;
+    }
+    if (_step == 2) {
+      if (_password.text.length < 8) {
+        setState(() => _error = 'Use at least eight characters.');
+        return;
+      }
+      if (_password.text != _confirmation.text) {
+        setState(() => _error = 'The passwords do not match.');
+        return;
+      }
+    }
+
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      if (_step == 0) {
+        final debugCode = await widget.controller.requestPasswordReset(email);
+        if (!mounted) return;
+        setState(() {
+          _developmentCode = debugCode;
+          _step = 1;
+        });
+      } else if (_step == 1) {
+        final token = await widget.controller.verifyPasswordResetCode(
+          email,
+          _code.text,
+        );
+        if (!mounted) return;
+        setState(() {
+          _resetToken = token;
+          _step = 2;
+        });
+      } else {
+        await widget.controller.resetPassword(_resetToken!, _password.text);
+        if (mounted) Navigator.pop(context, true);
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = switch (_step) {
+      0 => 'Reset your password',
+      1 => 'Enter reset code',
+      _ => 'Choose a new password',
+    };
+    final action = switch (_step) {
+      0 => 'Send reset code',
+      1 => 'Verify code',
+      _ => 'Update password',
+    };
+    return AlertDialog(
+      icon: const Icon(Icons.lock_reset_rounded),
+      title: Text(title),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_step == 0)
+                TextField(
+                  controller: _email,
+                  autofocus: true,
+                  keyboardType: TextInputType.emailAddress,
+                  autofillHints: const [AutofillHints.email],
+                  decoration: const InputDecoration(
+                    labelText: 'Email address',
+                    prefixIcon: Icon(Icons.alternate_email_rounded),
+                  ),
+                ),
+              if (_step == 1) ...[
+                Text(
+                  'Enter the code sent to $emailLabel. It expires in 10 minutes.',
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _code,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  decoration: const InputDecoration(
+                    labelText: 'Six-digit code',
+                    prefixIcon: Icon(Icons.password_rounded),
+                  ),
+                ),
+                if (_developmentCode != null)
+                  Text(
+                    'Development code: $_developmentCode',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+              ],
+              if (_step == 2) ...[
+                TextField(
+                  controller: _password,
+                  autofocus: true,
+                  obscureText: _obscure,
+                  autofillHints: const [AutofillHints.newPassword],
+                  decoration: InputDecoration(
+                    labelText: 'New password',
+                    prefixIcon: const Icon(Icons.lock_outline_rounded),
+                    suffixIcon: IconButton(
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                      icon: Icon(
+                        _obscure
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _confirmation,
+                  obscureText: _obscure,
+                  onSubmitted: (_) => _continue(),
+                  decoration: const InputDecoration(
+                    labelText: 'Confirm new password',
+                    prefixIcon: Icon(Icons.verified_user_outlined),
+                  ),
+                ),
+              ],
+              if (_error != null) ...[
+                const SizedBox(height: 14),
+                Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _busy ? null : _continue,
+          child: _busy
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(action),
+        ),
+      ],
+    );
+  }
+
+  String get emailLabel => _email.text.trim();
 }
 
 class _LoginStoryPanel extends StatelessWidget {

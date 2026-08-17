@@ -64,4 +64,38 @@ void main() {
     expect(find.byType(TextFormField), findsNWidgets(2));
     expect(find.text('Protected ICCASA workspace'), findsOneWidget);
   });
+
+  testWidgets('login opens the native password reset flow', (tester) async {
+    final controller = AppController(api: ApiClient(), store: LocalStore())
+      ..stage = AppStage.signedOut;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [appControllerProvider.overrideWith((ref) => controller)],
+        child: const MaterialApp(home: LoginScreen()),
+      ),
+    );
+
+    await tester.tap(find.text('Forgot password?'));
+    await tester.pumpAndSettle();
+
+    final dialog = find.byType(AlertDialog);
+    expect(dialog, findsOneWidget);
+    expect(
+      find.descendant(of: dialog, matching: find.text('Reset your password')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: dialog, matching: find.text('Email address')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: dialog, matching: find.text('Send reset code')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: dialog, matching: find.text('Cancel')),
+      findsOneWidget,
+    );
+  });
 }

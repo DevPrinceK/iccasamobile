@@ -12,4 +12,11 @@ abstract final class AppConfig {
   );
 
   static bool get showPreviewAccess => kDebugMode;
+
+  static void validate() {
+    final uri = Uri.tryParse(apiUrl);
+    if (kReleaseMode && (uri == null || uri.scheme != 'https')) {
+      throw StateError('Release builds require an HTTPS ICCASA_API_URL.');
+    }
+  }
 }

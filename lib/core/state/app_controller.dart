@@ -131,6 +131,15 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  Future<String?> requestPasswordReset(String email) =>
+      _api.requestPasswordReset(email);
+
+  Future<String> verifyPasswordResetCode(String email, String otp) =>
+      _api.verifyPasswordResetCode(email, otp);
+
+  Future<void> resetPassword(String resetToken, String password) =>
+      _api.resetPassword(resetToken, password);
+
   Future<void> enterPreview() async {
     previewMode = true;
     user = const AppUser(
@@ -262,6 +271,7 @@ class AppController extends ChangeNotifier {
         final submitted = await _api.submit(
           formId: draft.formId,
           formVersionId: draft.formVersionId,
+          clientSubmissionId: draft.id,
           data: await _prepareUploads(values),
         );
         drafts = drafts.where((item) => item.id != id).toList();
@@ -316,6 +326,7 @@ class AppController extends ChangeNotifier {
         final submitted = await _api.submit(
           formId: item.formId,
           formVersionId: item.formVersionId,
+          clientSubmissionId: item.id,
           data: await _prepareUploads(item.data),
         );
         submissions = [
@@ -453,7 +464,7 @@ class AppController extends ChangeNotifier {
   ]);
 
   Future<void> _loadCachedOperationalData() async {
-    assignments = _store.readAssignments();
+    assignments = await _store.readAssignments();
     final secureData = await Future.wait([
       _store.readSubmissions(),
       _store.readDrafts(),

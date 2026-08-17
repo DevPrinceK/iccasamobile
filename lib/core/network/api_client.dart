@@ -81,6 +81,48 @@ class ApiClient {
     }
   }
 
+  Future<String?> requestPasswordReset(String email) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/auth/forgot-password',
+        data: {'email': email.trim()},
+      );
+      return response.data?['debug_otp']?.toString();
+    } on DioException catch (error) {
+      throw _mapError(
+        error,
+        fallback: 'A password reset code could not be requested.',
+      );
+    }
+  }
+
+  Future<String> verifyPasswordResetCode(String email, String otp) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/auth/verify-otp',
+        data: {'email': email.trim(), 'otp': otp.trim()},
+      );
+      final token = response.data?['reset_token']?.toString() ?? '';
+      if (token.isEmpty) {
+        throw const ApiException('The reset code could not be verified.');
+      }
+      return token;
+    } on DioException catch (error) {
+      throw _mapError(error, fallback: 'The reset code could not be verified.');
+    }
+  }
+
+  Future<void> resetPassword(String resetToken, String password) async {
+    try {
+      await _dio.post<void>(
+        '/auth/reset-password',
+        data: {'reset_token': resetToken, 'password': password},
+      );
+    } on DioException catch (error) {
+      throw _mapError(error, fallback: 'Your password could not be updated.');
+    }
+  }
+
   Future<List<FieldAssignment>> getAssignedForms() async {
     try {
       final response = await _dio.get<List<dynamic>>('/forms/assigned');
@@ -136,6 +178,7 @@ class ApiClient {
   Future<SubmissionRecord> submit({
     required int formId,
     required int formVersionId,
+    required String clientSubmissionId,
     required Map<String, dynamic> data,
   }) async {
     try {
@@ -145,6 +188,7 @@ class ApiClient {
           'form_id': formId,
           'form_version_id': formVersionId,
           'device_id': AppConfig.deviceName,
+          'client_submission_id': clientSubmissionId,
           'data': data,
         },
       );
