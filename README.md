@@ -1,16 +1,25 @@
-# iccasa_mobile
+# ICCASA Field
 
-A new Flutter project.
+Responsive, offline-first field collection for ICCASA M&E. The Flutter app runs
+on Android, iOS, tablets and web for development verification.
 
-## Getting Started
+## Run locally
 
-This project is a starting point for a Flutter application.
+```powershell
+flutter pub get
+flutter run -d chrome --dart-define=ICCASA_API_URL=http://127.0.0.1:8002/api/v1
+```
 
-A few resources to get you started if this is your first Flutter project:
+For an Android emulator, use `http://10.0.2.2:8002/api/v1`. Production builds
+must supply the deployed HTTPS API URL through `ICCASA_API_URL`.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+The development seed includes `abena.mensah@iccasa.local` with password
+`Password123!`. A local preview workspace is also available in debug builds.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Quality checks
+
+```powershell
+flutter analyze
+flutter test
+flutter build web --release --dart-define=ICCASA_API_URL=https://api.example.org/api/v1
+```

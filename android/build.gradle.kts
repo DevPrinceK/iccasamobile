@@ -5,11 +5,15 @@ allprojects {
     }
 }
 
-val newBuildDir: Directory =
-    rootProject.layout.buildDirectory
-        .dir("../../build")
-        .get()
-rootProject.layout.buildDirectory.value(newBuildDir)
+val externalBuildDir = providers.environmentVariable("ICCASA_MOBILE_BUILD_DIR").orNull
+if (externalBuildDir.isNullOrBlank()) {
+    rootProject.layout.buildDirectory.value(
+        rootProject.layout.buildDirectory.dir("../../build").get()
+    )
+} else {
+    rootProject.layout.buildDirectory.set(file(externalBuildDir))
+}
+val newBuildDir: Directory = rootProject.layout.buildDirectory.get()
 
 subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
