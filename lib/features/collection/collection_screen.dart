@@ -553,10 +553,12 @@ class _DynamicInputState extends State<_DynamicInput> {
     }
     if (type.contains('select') ||
         type.contains('dropdown') ||
-        type.contains('choice')) {
+        type.contains('choice') ||
+        type.contains('radio')) {
       final options = widget.field.options;
       return DropdownButtonFormField<String>(
-        initialValue: options.contains(widget.value)
+        initialValue:
+            options.any((option) => option.value == widget.value?.toString())
             ? widget.value?.toString()
             : null,
         isExpanded: true,
@@ -566,7 +568,10 @@ class _DynamicInputState extends State<_DynamicInput> {
         ),
         items: options
             .map(
-              (option) => DropdownMenuItem(value: option, child: Text(option)),
+              (option) => DropdownMenuItem(
+                value: option.value,
+                child: Text(option.label),
+              ),
             )
             .toList(),
         onChanged: widget.onChanged,
@@ -890,6 +895,7 @@ bool _usesTextInput(FieldDefinition field) {
       type.contains('select') ||
       type.contains('dropdown') ||
       type.contains('choice') ||
+      type.contains('radio') ||
       type.contains('date') ||
       type.contains('gps') ||
       type.contains('location') ||

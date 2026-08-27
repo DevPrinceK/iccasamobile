@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../app/theme.dart';
 import '../../core/config/app_config.dart';
+import '../../core/network/api_client.dart';
 import '../../core/state/app_controller.dart';
 import '../../design_system/app_ui.dart';
 
@@ -34,24 +36,7 @@ class SettingsScreen extends ConsumerWidget {
                       const SizedBox(height: 18),
                       Row(
                         children: [
-                          CircleAvatar(
-                            radius: 31,
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.primaryContainer,
-                            child: Text(
-                              controller.user?.name.characters.first
-                                      .toUpperCase() ??
-                                  'I',
-                              style: TextStyle(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onPrimaryContainer,
-                                fontSize: 24,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
+                          _ProfileAvatar(controller: controller),
                           const SizedBox(width: 14),
                           Expanded(
                             child: Column(
@@ -76,6 +61,43 @@ class SettingsScreen extends ConsumerWidget {
                         ],
                       ),
                       const SizedBox(height: 20),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: controller.isUpdatingProfilePhoto
+                                ? null
+                                : () =>
+                                      _chooseProfilePhoto(context, controller),
+                            icon: controller.isUpdatingProfilePhoto
+                                ? const SizedBox.square(
+                                    dimension: 17,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.add_a_photo_outlined),
+                            label: Text(
+                              controller.avatarUrl == null
+                                  ? 'Add profile photo'
+                                  : 'Change profile photo',
+                            ),
+                          ),
+                          if (controller.avatarUrl != null)
+                            TextButton.icon(
+                              onPressed: controller.isUpdatingProfilePhoto
+                                  ? null
+                                  : () => _removeProfilePhoto(
+                                      context,
+                                      controller,
+                                    ),
+                              icon: const Icon(Icons.delete_outline_rounded),
+                              label: const Text('Remove photo'),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
                       OutlinedButton.icon(
                         onPressed: () => _confirmSignOut(context, controller),
                         icon: const Icon(Icons.logout_rounded),
@@ -224,7 +246,12 @@ class SettingsScreen extends ConsumerWidget {
                       const _SettingRow(
                         icon: Icons.info_outline_rounded,
                         title: 'App version',
-                        value: '1.0.0',
+                        value: AppConfig.appVersion,
+                      ),
+                      _SettingRow(
+                        icon: Icons.phone_android_rounded,
+                        title: 'Device ID',
+                        value: controller.deviceId,
                       ),
                       const SizedBox(height: 12),
                       Text(
@@ -256,6 +283,106 @@ class SettingsScreen extends ConsumerWidget {
         const SizedBox(height: 24),
       ],
     );
+  }
+
+  Future<void> _chooseProfilePhoto(
+    BuildContext context,
+    AppController controller,
+  ) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Profile photo',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 10),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Take a photo'),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Choose from gallery'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (source == null) return;
+    final image = await ImagePicker().pickImage(
+      source: source,
+      maxWidth: 1400,
+      maxHeight: 1400,
+      imageQuality: 88,
+    );
+    if (image == null) return;
+    try {
+      await controller.updateProfilePhoto(
+        filename: image.name,
+        bytes: await image.readAsBytes(),
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Profile photo updated.')));
+      }
+    } on ApiException catch (error) {
+      if (context.mounted) _showProfileError(context, error.message);
+    }
+  }
+
+  Future<void> _removeProfilePhoto(
+    BuildContext context,
+    AppController controller,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.person_remove_outlined),
+        title: const Text('Remove profile photo?'),
+        content: const Text(
+          'Your initials will be shown until you add another photo.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove photo'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await controller.removeProfilePhoto();
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Profile photo removed.')));
+      }
+    } on ApiException catch (error) {
+      if (context.mounted) _showProfileError(context, error.message);
+    }
+  }
+
+  void _showProfileError(BuildContext context, String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _confirmSignOut(
@@ -315,6 +442,37 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
     if (confirmed == true) await controller.clearCachedOperationalData();
+  }
+}
+
+class _ProfileAvatar extends StatelessWidget {
+  const _ProfileAvatar({required this.controller});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = controller.avatarUrl == null
+        ? null
+        : NetworkImage(
+            controller.avatarUrl!,
+            headers: controller.avatarHeaders,
+          );
+    return CircleAvatar(
+      radius: 31,
+      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+      backgroundImage: image,
+      child: image == null
+          ? Text(
+              controller.user?.name.characters.first.toUpperCase() ?? 'I',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+              ),
+            )
+          : null,
+    );
   }
 }
 

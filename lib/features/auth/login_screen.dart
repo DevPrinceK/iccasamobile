@@ -193,14 +193,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         );
                                         if (!context.mounted) return;
                                         if (changed == true) {
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
-                                                const SnackBar(
-                                                  content: Text(
-                                                    'Password updated. You can now sign in.',
-                                                  ),
-                                                ),
-                                              );
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Password updated. You can now sign in.',
+                                              ),
+                                            ),
+                                          );
                                         }
                                       },
                                 child: const Text('Forgot password?'),

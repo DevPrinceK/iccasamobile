@@ -12,6 +12,7 @@ class AppUser {
     required this.role,
     this.organizationId,
     this.phone,
+    this.avatarUrl,
   });
 
   final int id;
@@ -20,8 +21,10 @@ class AppUser {
   final String email;
   final String role;
   final String? phone;
+  final String? avatarUrl;
 
-  bool get canReview => role != 'field_agent';
+  bool get canReview =>
+      const {'platform_admin', 'organization_admin', 'manager'}.contains(role);
   String get firstName => name.trim().split(RegExp(r'\s+')).firstOrNull ?? name;
   String get roleLabel => role
       .split('_')
@@ -39,6 +42,7 @@ class AppUser {
     email: json['email']?.toString() ?? '',
     role: json['role']?.toString() ?? 'field_agent',
     phone: json['phone']?.toString(),
+    avatarUrl: json['avatar_url']?.toString(),
   );
 
   Map<String, dynamic> toJson() => {
@@ -48,7 +52,28 @@ class AppUser {
     'email': email,
     'role': role,
     'phone': phone,
+    'avatar_url': avatarUrl,
   };
+}
+
+class FieldOption {
+  const FieldOption({required this.value, required this.label});
+
+  final String value;
+  final String label;
+
+  factory FieldOption.fromJson(Object? json) {
+    if (json is Map) {
+      final value = json['value'] ?? json['label'];
+      final label = json['label'] ?? json['value'];
+      return FieldOption(
+        value: value?.toString() ?? '',
+        label: label?.toString() ?? '',
+      );
+    }
+    final value = json?.toString() ?? '';
+    return FieldOption(value: value, label: value);
+  }
 }
 
 class FieldDefinition {
@@ -70,9 +95,9 @@ class FieldDefinition {
   final bool required;
   final Map<String, dynamic> config;
 
-  List<String> get options => (config['options'] as List? ?? const [])
-      .map((value) => value.toString())
-      .where((value) => value.isNotEmpty)
+  List<FieldOption> get options => (config['options'] as List? ?? const [])
+      .map(FieldOption.fromJson)
+      .where((option) => option.value.isNotEmpty)
       .toList();
 
   String get normalizedType => type.trim().toLowerCase().replaceAll('_', ' ');
@@ -174,7 +199,17 @@ class FieldAssignment {
   bool get isReady => isActive && version != null && version!.isPublished;
 
   factory FieldAssignment.fromJson(Map<String, dynamic> json) {
+    final rawVersions = (json['versions'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+    final published = rawVersions
+        .where((item) => item['is_published'] == true)
+        .firstOrNull;
     final current = json['current_version'];
+    final selectedVersion = current is Map && current['is_published'] == true
+        ? current
+        : published ?? (current is Map ? current : null);
     return FieldAssignment(
       id: _asInt(json['id']),
       projectId: _asNullableInt(json['project_id']),
@@ -183,8 +218,8 @@ class FieldAssignment {
       description:
           json['description']?.toString() ?? 'No description provided.',
       isActive: json['is_active'] != false,
-      version: current is Map
-          ? FormVersion.fromJson(Map<String, dynamic>.from(current))
+      version: selectedVersion is Map
+          ? FormVersion.fromJson(Map<String, dynamic>.from(selectedVersion))
           : null,
     );
   }
@@ -265,12 +300,14 @@ class SubmissionRecord {
   final LocalRecordState localState;
   final String? formName;
 
+  bool get isAwaitingReview => status == 'queued' || status == 'pending_review';
+
   factory SubmissionRecord.fromJson(Map<String, dynamic> json) =>
       SubmissionRecord(
         id: json['id']?.toString() ?? '',
         formId: _asInt(json['form_id']),
         formVersionId: _asInt(json['form_version_id']),
-        status: json['status']?.toString() ?? 'pending_review',
+        status: json['status']?.toString() ?? 'queued',
         data: _asMap(json['data']),
         createdAt:
             DateTime.tryParse(json['created_at']?.toString() ?? '') ??

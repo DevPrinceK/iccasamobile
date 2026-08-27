@@ -289,17 +289,7 @@ class _AccountMenu extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-            child: Text(
-              controller.user?.name.characters.first.toUpperCase() ?? 'I',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
+          _AccountAvatar(controller: controller),
           if (showName) ...[
             const SizedBox(width: 10),
             Column(
@@ -323,6 +313,36 @@ class _AccountMenu extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _AccountAvatar extends StatelessWidget {
+  const _AccountAvatar({required this.controller});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = controller.avatarUrl == null
+        ? null
+        : NetworkImage(
+            controller.avatarUrl!,
+            headers: controller.avatarHeaders,
+          );
+    return CircleAvatar(
+      radius: 18,
+      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+      backgroundImage: image,
+      child: image == null
+          ? Text(
+              controller.user?.name.characters.first.toUpperCase() ?? 'I',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                fontWeight: FontWeight.w800,
+              ),
+            )
+          : null,
+    );
+  }
 }
 
 class _RailBrand extends StatelessWidget {

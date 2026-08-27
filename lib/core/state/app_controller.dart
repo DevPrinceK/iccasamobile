@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:uuid/uuid.dart';
 
+import '../config/app_config.dart';
 import '../models/field_models.dart';
 import '../network/api_client.dart';
 import '../storage/local_store.dart';
@@ -19,7 +21,10 @@ final appControllerProvider = ChangeNotifierProvider<AppController>((ref) {
 class AppController extends ChangeNotifier {
   AppController({required ApiClient api, required LocalStore store})
     : _api = api,
-      _store = store;
+      _store = store {
+    _api.onSessionRefreshed = _handleSessionRefresh;
+    _api.onSessionExpired = _expireSession;
+  }
 
   final ApiClient _api;
   final LocalStore _store;
@@ -27,6 +32,8 @@ class AppController extends ChangeNotifier {
   final Uuid _uuid = const Uuid();
 
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  String? _accessToken;
+  String? _refreshToken;
 
   AppStage stage = AppStage.booting;
   AppUser? user;
@@ -41,12 +48,14 @@ class AppController extends ChangeNotifier {
   bool isBusy = false;
   bool isRefreshing = false;
   bool isSyncing = false;
+  bool isUpdatingProfilePhoto = false;
   bool previewMode = false;
   String? errorMessage;
   DateTime? lastSyncedAt;
+  String deviceId = AppConfig.deviceName;
 
   int get pendingReviewCount =>
-      submissions.where((item) => item.status == 'pending_review').length;
+      submissions.where((item) => item.isAwaitingReview).length;
   int get acceptedCount =>
       submissions.where((item) => item.status == 'accepted').length;
   int get completedToday => submissions.where((item) {
@@ -56,6 +65,9 @@ class AppController extends ChangeNotifier {
         item.createdAt.day == now.day;
   }).length;
   bool get hasLocalWork => drafts.isNotEmpty || outbox.isNotEmpty;
+  String? get avatarUrl =>
+      user?.avatarUrl == null ? null : AppConfig.absoluteUrl(user!.avatarUrl!);
+  Map<String, String> get avatarHeaders => _api.authorizationHeaders;
 
   Future<void> initialize() async {
     try {
@@ -63,6 +75,10 @@ class AppController extends ChangeNotifier {
       themeMode = _parseThemeMode(_store.themeMode);
       highContrast = _store.highContrast;
       textScale = _store.textScale;
+      deviceId =
+          _store.deviceId ??
+          '${AppConfig.deviceName}-${_uuid.v4().substring(0, 8).toUpperCase()}';
+      await _store.saveDeviceId(deviceId);
       user = await _store.readUser();
       await _loadCachedOperationalData();
 
@@ -73,14 +89,21 @@ class AppController extends ChangeNotifier {
       );
 
       final token = await _store.readToken();
+      final refreshToken = await _store.readRefreshToken();
       if (token == null || token.isEmpty) {
         stage = AppStage.signedOut;
       } else {
-        _api.setAccessToken(token);
+        _accessToken = token;
+        _refreshToken = refreshToken;
+        _api.setSession(token, refreshToken);
         if (isOnline) {
           try {
             user = await _api.getCurrentUser();
-            await _store.saveSession(token, user!);
+            await _store.saveSession(
+              _accessToken!,
+              user!,
+              refreshToken: _refreshToken,
+            );
             stage = AppStage.signedIn;
             await refreshAll(silent: true);
           } on ApiException catch (error) {
@@ -115,8 +138,14 @@ class AppController extends ChangeNotifier {
     try {
       final session = await _api.login(email, password);
       user = session.user;
+      _accessToken = session.token;
+      _refreshToken = session.refreshToken;
       previewMode = false;
-      await _store.saveSession(session.token, session.user);
+      await _store.saveSession(
+        session.token,
+        session.user,
+        refreshToken: session.refreshToken,
+      );
       await _loadCachedOperationalData();
       stage = AppStage.signedIn;
       notifyListeners();
@@ -139,6 +168,50 @@ class AppController extends ChangeNotifier {
 
   Future<void> resetPassword(String resetToken, String password) =>
       _api.resetPassword(resetToken, password);
+
+  Future<void> updateProfilePhoto({
+    required String filename,
+    required Uint8List bytes,
+  }) async {
+    isUpdatingProfilePhoto = true;
+    notifyListeners();
+    try {
+      final updated = await _api.updateProfilePhoto(
+        filename: filename,
+        bytes: bytes,
+      );
+      user = updated;
+      if (_accessToken != null) {
+        await _store.saveSession(
+          _accessToken!,
+          updated,
+          refreshToken: _refreshToken,
+        );
+      }
+    } finally {
+      isUpdatingProfilePhoto = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> removeProfilePhoto() async {
+    isUpdatingProfilePhoto = true;
+    notifyListeners();
+    try {
+      final updated = await _api.removeProfilePhoto();
+      user = updated;
+      if (_accessToken != null) {
+        await _store.saveSession(
+          _accessToken!,
+          updated,
+          refreshToken: _refreshToken,
+        );
+      }
+    } finally {
+      isUpdatingProfilePhoto = false;
+      notifyListeners();
+    }
+  }
 
   Future<void> enterPreview() async {
     previewMode = true;
@@ -270,7 +343,7 @@ class AppController extends ChangeNotifier {
     await updateDraft(id, values);
 
     if (previewMode) {
-      _completeLocalDraft(draft, values, status: 'pending_review');
+      _completeLocalDraft(draft, values, status: 'queued');
       await _persistOperationalData();
       notifyListeners();
       return true;
@@ -282,6 +355,7 @@ class AppController extends ChangeNotifier {
           formId: draft.formId,
           formVersionId: draft.formVersionId,
           clientSubmissionId: draft.id,
+          deviceId: deviceId,
           data: await _prepareUploads(values),
         );
         drafts = drafts.where((item) => item.id != id).toList();
@@ -337,6 +411,7 @@ class AppController extends ChangeNotifier {
           formId: item.formId,
           formVersionId: item.formVersionId,
           clientSubmissionId: item.id,
+          deviceId: deviceId,
           data: await _prepareUploads(item.data),
         );
         submissions = [
@@ -427,6 +502,8 @@ class AppController extends ChangeNotifier {
   Future<void> signOut() async {
     if (!previewMode) await _api.logout();
     await _store.clearSession();
+    _accessToken = null;
+    _refreshToken = null;
     user = null;
     previewMode = false;
     assignments = [];
@@ -435,6 +512,34 @@ class AppController extends ChangeNotifier {
     outbox = [];
     stage = AppStage.signedOut;
     errorMessage = null;
+    notifyListeners();
+  }
+
+  Future<void> _handleSessionRefresh(
+    String accessToken,
+    String refreshToken,
+    AppUser refreshedUser,
+  ) async {
+    _accessToken = accessToken;
+    _refreshToken = refreshToken;
+    user = refreshedUser;
+    await _store.saveSession(
+      accessToken,
+      refreshedUser,
+      refreshToken: refreshToken,
+    );
+    notifyListeners();
+  }
+
+  Future<void> _expireSession() async {
+    _accessToken = null;
+    _refreshToken = null;
+    user = null;
+    assignments = [];
+    submissions = [];
+    stage = AppStage.signedOut;
+    errorMessage = 'Your session expired. Sign in again to continue.';
+    await _store.clearSession();
     notifyListeners();
   }
 
@@ -668,7 +773,7 @@ List<FieldAssignment> _previewAssignments() {
 List<SubmissionRecord> _previewSubmissions() {
   final now = DateTime.now();
   return List.generate(14, (index) {
-    final statuses = ['accepted', 'pending_review', 'accepted', 'rejected'];
+    final statuses = ['accepted', 'queued', 'accepted', 'rejected'];
     return SubmissionRecord(
       id: '${8000 + index}',
       formId: 101 + (index % 4),

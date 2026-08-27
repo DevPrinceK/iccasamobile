@@ -48,6 +48,76 @@ void main() {
     expect(form.version!.instructions, 'Verify evidence.');
   });
 
+  test('assigned forms prefer the published version over a newer draft', () {
+    final form = FieldAssignment.fromJson({
+      'id': 9,
+      'name': 'Partner verification',
+      'is_active': true,
+      'current_version': {
+        'id': 30,
+        'version': 3,
+        'is_published': false,
+        'fields': const [],
+      },
+      'versions': [
+        {'id': 30, 'version': 3, 'is_published': false, 'fields': const []},
+        {
+          'id': 29,
+          'version': 2,
+          'is_published': true,
+          'fields': [
+            {
+              'id': 1,
+              'key': 'district',
+              'label': 'District',
+              'field_type': 'Dropdown',
+              'required': true,
+              'config': {
+                'options': [
+                  {'label': 'Tamale Metro', 'value': 'tamale'},
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(form.version!.id, 29);
+    expect(form.isReady, isTrue);
+    expect(form.version!.fields.single.options.single.label, 'Tamale Metro');
+    expect(form.version!.fields.single.options.single.value, 'tamale');
+  });
+
+  test('mobile permissions and review statuses match the live API', () {
+    final reviewer = AppUser.fromJson({
+      'id': 1,
+      'name': 'Reviewer',
+      'email': 'reviewer@example.org',
+      'role': 'manager',
+      'avatar_url': '/api/v1/users/1/avatar?v=2',
+    });
+    final observer = AppUser.fromJson({
+      'id': 2,
+      'name': 'Observer',
+      'email': 'observer@example.org',
+      'role': 'donor_viewer',
+    });
+    final queued = SubmissionRecord.fromJson({
+      'id': 41,
+      'form_id': 9,
+      'form_version_id': 29,
+      'status': 'queued',
+      'data': const {},
+      'created_at': DateTime.now().toIso8601String(),
+    });
+
+    expect(reviewer.canReview, isTrue);
+    expect(observer.canReview, isFalse);
+    expect(reviewer.avatarUrl, '/api/v1/users/1/avatar?v=2');
+    expect(queued.isAwaitingReview, isTrue);
+  });
+
   testWidgets('login exposes the secure sign-in flow', (tester) async {
     final controller = AppController(api: ApiClient(), store: LocalStore())
       ..stage = AppStage.signedOut;

@@ -5,6 +5,7 @@ import '../models/field_models.dart';
 
 class LocalStore {
   static const _tokenKey = 'iccasa_access_token';
+  static const _refreshTokenKey = 'iccasa_refresh_token';
   static const _userKey = 'iccasa_user';
   static const _formsKey = 'iccasa_assigned_forms';
   static const _submissionsKey = 'iccasa_submissions';
@@ -13,6 +14,7 @@ class LocalStore {
   static const _themeKey = 'iccasa_theme_mode';
   static const _contrastKey = 'iccasa_high_contrast';
   static const _textScaleKey = 'iccasa_text_scale';
+  static const _deviceIdKey = 'iccasa_device_id';
 
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   late SharedPreferences _preferences;
@@ -23,13 +25,22 @@ class LocalStore {
   }
 
   Future<String?> readToken() async => _readSecure(_tokenKey);
+  Future<String?> readRefreshToken() async => _readSecure(_refreshTokenKey);
 
-  Future<void> saveSession(String token, AppUser user) async {
+  Future<void> saveSession(
+    String token,
+    AppUser user, {
+    String? refreshToken,
+  }) async {
     _ownerId = user.id;
-    await Future.wait([
+    final writes = <Future<void>>[
       _writeSecure(_tokenKey, token),
       _writeSecure(_userKey, encodeJsonList([user], (item) => item.toJson())),
-    ]);
+    ];
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      writes.add(_writeSecure(_refreshTokenKey, refreshToken));
+    }
+    await Future.wait(writes);
   }
 
   Future<AppUser?> readUser() async {
@@ -41,7 +52,11 @@ class LocalStore {
   }
 
   Future<void> clearSession() async {
-    await Future.wait([_deleteSecure(_tokenKey), _deleteSecure(_userKey)]);
+    await Future.wait([
+      _deleteSecure(_tokenKey),
+      _deleteSecure(_refreshTokenKey),
+      _deleteSecure(_userKey),
+    ]);
     _ownerId = null;
   }
 
@@ -49,11 +64,10 @@ class LocalStore {
     await _readSecure(_scoped(_formsKey)),
   ).map(FieldAssignment.fromJson).toList();
 
-  Future<void> saveAssignments(List<FieldAssignment> values) =>
-      _writeSecure(
-        _scoped(_formsKey),
-        encodeJsonList(values, (item) => item.toJson()),
-      );
+  Future<void> saveAssignments(List<FieldAssignment> values) => _writeSecure(
+    _scoped(_formsKey),
+    encodeJsonList(values, (item) => item.toJson()),
+  );
 
   Future<List<SubmissionRecord>> readSubmissions() async => decodeJsonList(
     await _readSecure(_scoped(_submissionsKey)),
@@ -85,6 +99,7 @@ class LocalStore {
   String get themeMode => _preferences.getString(_themeKey) ?? 'system';
   bool get highContrast => _preferences.getBool(_contrastKey) ?? false;
   double get textScale => _preferences.getDouble(_textScaleKey) ?? 1;
+  String? get deviceId => _preferences.getString(_deviceIdKey);
 
   Future<void> saveThemeMode(String value) =>
       _preferences.setString(_themeKey, value);
@@ -92,6 +107,8 @@ class LocalStore {
       _preferences.setBool(_contrastKey, value);
   Future<void> saveTextScale(double value) =>
       _preferences.setDouble(_textScaleKey, value);
+  Future<void> saveDeviceId(String value) =>
+      _preferences.setString(_deviceIdKey, value);
 
   Future<void> clearOperationalData() async {
     await Future.wait([

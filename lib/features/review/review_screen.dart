@@ -29,7 +29,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
     final query = _searchController.text.trim().toLowerCase();
     final records = controller.submissions.where((item) {
       final name = controller.formName(item.formId);
-      return item.status == 'pending_review' &&
+      return item.isAwaitingReview &&
           (query.isEmpty ||
               name.toLowerCase().contains(query) ||
               item.id.contains(query));
