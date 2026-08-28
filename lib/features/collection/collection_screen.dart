@@ -11,8 +11,10 @@ import 'package:signature/signature.dart';
 import '../../app/theme.dart';
 import '../../core/models/field_models.dart';
 import '../../core/network/api_client.dart';
+import '../../core/services/geography_repository.dart';
 import '../../core/state/app_controller.dart';
 import '../../design_system/app_ui.dart';
+import 'geography_section.dart';
 
 class CollectionScreen extends ConsumerStatefulWidget {
   const CollectionScreen({
@@ -83,6 +85,18 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     _saveDebounce = Timer(const Duration(milliseconds: 500), _saveNow);
   }
 
+  void _setGeography(Map<String, dynamic> value) {
+    _setValue(geographyValueKey, value);
+    setState(() {
+      if ((value['country_code']?.toString().isNotEmpty ?? false)) {
+        _missingKeys.remove(geographyCountryErrorKey);
+      }
+      if (geographyIsComplete(value)) {
+        _missingKeys.remove(geographyAreaErrorKey);
+      }
+    });
+  }
+
   Future<void> _saveNow() async {
     if (_draft == null) return;
     await ref.read(appControllerProvider).updateDraft(_draft!.id, _values);
@@ -95,6 +109,13 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
         .where((field) => field.required && _isEmpty(_values[field.key]))
         .map((field) => field.key)
         .toSet();
+    final geography = geographyFromValues(_values);
+    if (geography['country_code']?.toString().isEmpty ?? true) {
+      missing.add(geographyCountryErrorKey);
+    }
+    if (!geographyIsComplete(geography)) {
+      missing.add(geographyAreaErrorKey);
+    }
     if (missing.isNotEmpty) {
       setState(() {
         _missingKeys
@@ -186,10 +207,13 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
       );
     }
     final fields = assignment.version!.fields;
-    final completed = fields
-        .where((field) => !_isEmpty(_values[field.key]))
-        .length;
-    final progress = fields.isEmpty ? 0.0 : completed / fields.length;
+    final geography = geographyFromValues(_values);
+    final completed =
+        fields.where((field) => !_isEmpty(_values[field.key])).length +
+        (geography['country_code']?.toString().isNotEmpty ?? false ? 1 : 0) +
+        (geographyIsComplete(geography) ? 1 : 0);
+    final totalFields = fields.length + 2;
+    final progress = completed / totalFields;
     final tablet = MediaQuery.sizeOf(context).width >= 850;
     return Scaffold(
       appBar: AppBar(
@@ -234,6 +258,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                 fields: fields,
                 values: _values,
                 missing: _missingKeys,
+                geography: geography,
               ),
             Expanded(
               child: CustomScrollView(
@@ -277,7 +302,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                '$completed of ${fields.length} fields completed',
+                                '$completed of $totalFields fields completed',
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                               if (_formError != null) ...[
@@ -285,11 +310,22 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                                 MessageBanner(message: _formError!),
                               ],
                               const SizedBox(height: 22),
+                              GeographySection(
+                                value: geography,
+                                onChanged: _setGeography,
+                                countryError: _missingKeys.contains(
+                                  geographyCountryErrorKey,
+                                ),
+                                areaError: _missingKeys.contains(
+                                  geographyAreaErrorKey,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
                               ...fields.indexed.map(
                                 (entry) => Padding(
                                   padding: const EdgeInsets.only(bottom: 16),
                                   child: _FieldCard(
-                                    index: entry.$1,
+                                    index: entry.$1 + 2,
                                     field: entry.$2,
                                     value: _values[entry.$2.key],
                                     textController:
@@ -364,11 +400,13 @@ class _ProgressRail extends StatelessWidget {
     required this.fields,
     required this.values,
     required this.missing,
+    required this.geography,
   });
 
   final List<FieldDefinition> fields;
   final Map<String, dynamic> values;
   final Set<String> missing;
+  final Map<String, dynamic> geography;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -382,53 +420,83 @@ class _ProgressRail extends StatelessWidget {
       children: [
         Text('Form progress', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 18),
+        _ProgressEntry(
+          index: 1,
+          label: 'Country',
+          complete: geography['country_code']?.toString().isNotEmpty ?? false,
+          error: missing.contains(geographyCountryErrorKey),
+        ),
+        _ProgressEntry(
+          index: 2,
+          label:
+              geography['administrative_area_type']?.toString() ??
+              'District / county',
+          complete: geographyIsComplete(geography),
+          error: missing.contains(geographyAreaErrorKey),
+        ),
         ...fields.indexed.map((entry) {
           final complete = !_isEmpty(values[entry.$2.key]);
           final error = missing.contains(entry.$2.key);
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 15),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 13,
-                  backgroundColor: error
-                      ? Theme.of(context).colorScheme.errorContainer
-                      : complete
-                      ? AppColors.emerald
-                      : Theme.of(context).colorScheme.surfaceContainerHighest,
-                  child: complete && !error
-                      ? const Icon(
-                          Icons.check_rounded,
-                          size: 15,
-                          color: Colors.white,
-                        )
-                      : Text(
-                          '${entry.$1 + 1}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: error
-                                ? Theme.of(context).colorScheme.error
-                                : null,
-                          ),
-                        ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    entry.$2.label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          return _ProgressEntry(
+            index: entry.$1 + 3,
+            label: entry.$2.label,
+            complete: complete,
+            error: error,
           );
         }),
+      ],
+    ),
+  );
+}
+
+class _ProgressEntry extends StatelessWidget {
+  const _ProgressEntry({
+    required this.index,
+    required this.label,
+    required this.complete,
+    required this.error,
+  });
+
+  final int index;
+  final String label;
+  final bool complete;
+  final bool error;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 15),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(
+          radius: 13,
+          backgroundColor: error
+              ? Theme.of(context).colorScheme.errorContainer
+              : complete
+              ? AppColors.emerald
+              : Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: complete && !error
+              ? const Icon(Icons.check_rounded, size: 15, color: Colors.white)
+              : Text(
+                  '$index',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: error ? Theme.of(context).colorScheme.error : null,
+                  ),
+                ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ),
       ],
     ),
   );

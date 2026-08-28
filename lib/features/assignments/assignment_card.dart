@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/models/field_models.dart';
+import '../../core/services/geography_repository.dart';
 import '../../design_system/app_ui.dart';
 
 class AssignmentCard extends StatelessWidget {
@@ -20,7 +21,7 @@ class AssignmentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final completed = draft == null
+    final completedCustom = draft == null
         ? 0
         : assignment.version?.fields.where((field) {
                 final value = draft!.values[field.key];
@@ -29,6 +30,13 @@ class AssignmentCard extends StatelessWidget {
                     value != false;
               }).length ??
               0;
+    final geography = draft == null
+        ? const <String, dynamic>{}
+        : geographyFromValues(draft!.values);
+    final completed =
+        completedCustom +
+        (geography['country_code']?.toString().isNotEmpty ?? false ? 1 : 0) +
+        (geographyIsComplete(geography) ? 1 : 0);
     final progress = assignment.fieldCount == 0
         ? 0.0
         : completed / assignment.fieldCount;

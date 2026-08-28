@@ -115,6 +115,8 @@ class AssignmentDetailScreen extends ConsumerWidget {
                             '${assignment.fieldCount} fields, ${assignment.requiredCount} required',
                       ),
                       const SizedBox(height: 16),
+                      const _SystemFieldPreview(label: 'Country'),
+                      const _SystemFieldPreview(label: 'District / county'),
                       ...fields.map((field) => _FieldPreview(field: field)),
                     ],
                   ),
@@ -267,6 +269,35 @@ class _FieldPreview extends StatelessWidget {
         ),
         if (field.required)
           const StatusBadge('Required', color: AppColors.coral),
+      ],
+    ),
+  );
+}
+
+class _SystemFieldPreview extends StatelessWidget {
+  const _SystemFieldPreview({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 10),
+    child: Row(
+      children: [
+        CircleAvatar(
+          radius: 19,
+          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+          child: Icon(
+            Icons.location_on_outlined,
+            size: 19,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(label, style: Theme.of(context).textTheme.labelLarge),
+        ),
+        const StatusBadge('Required', color: AppColors.coral),
       ],
     ),
   );

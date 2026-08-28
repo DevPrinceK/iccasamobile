@@ -193,9 +193,10 @@ class FieldAssignment {
   final bool isActive;
   final FormVersion? version;
 
-  int get fieldCount => version?.fields.length ?? 0;
-  int get requiredCount =>
-      version?.fields.where((field) => field.required).length ?? 0;
+  int get fieldCount => version == null ? 0 : version!.fields.length + 2;
+  int get requiredCount => version == null
+      ? 0
+      : version!.fields.where((field) => field.required).length + 2;
   bool get isReady => isActive && version != null && version!.isPublished;
 
   factory FieldAssignment.fromJson(Map<String, dynamic> json) {
@@ -288,6 +289,9 @@ class SubmissionRecord {
     this.reviewNote,
     this.localState = LocalRecordState.synced,
     this.formName,
+    this.countryName,
+    this.administrativeAreaName,
+    this.administrativeAreaType,
   });
 
   final String id;
@@ -299,6 +303,9 @@ class SubmissionRecord {
   final String? reviewNote;
   final LocalRecordState localState;
   final String? formName;
+  final String? countryName;
+  final String? administrativeAreaName;
+  final String? administrativeAreaType;
 
   bool get isAwaitingReview => status == 'queued' || status == 'pending_review';
 
@@ -315,6 +322,9 @@ class SubmissionRecord {
         reviewNote: json['review_note']?.toString(),
         localState: _recordState(json['local_state']?.toString()),
         formName: json['form_name']?.toString(),
+        countryName: json['country_name']?.toString(),
+        administrativeAreaName: json['administrative_area_name']?.toString(),
+        administrativeAreaType: json['administrative_area_type']?.toString(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -327,6 +337,9 @@ class SubmissionRecord {
     'review_note': reviewNote,
     'local_state': localState.name,
     'form_name': formName,
+    'country_name': countryName,
+    'administrative_area_name': administrativeAreaName,
+    'administrative_area_type': administrativeAreaType,
   };
 }
 

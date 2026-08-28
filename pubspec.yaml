@@ -1,7 +1,7 @@
 name: iccasa_mobile
 description: ICCASA offline-first field collection for phones and tablets.
 publish_to: 'none'
-version: 1.1.1+3
+version: 1.1.2+4
 
 environment:
   sdk: ^3.10.7
@@ -33,6 +33,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/branding/
+    - assets/data/geography.json
 
 flutter_launcher_icons:
   android: ic_launcher

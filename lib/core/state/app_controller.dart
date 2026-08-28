@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 import '../config/app_config.dart';
 import '../models/field_models.dart';
 import '../network/api_client.dart';
+import '../services/geography_repository.dart';
 import '../storage/local_store.dart';
 
 final appControllerProvider = ChangeNotifierProvider<AppController>((ref) {
@@ -387,10 +388,17 @@ class AppController extends ChangeNotifier {
         formId: item.formId,
         formVersionId: item.formVersionId,
         status: 'queued',
-        data: item.data,
+        data: submissionDataFromValues(item.data),
         createdAt: item.createdAt,
         localState: LocalRecordState.queued,
         formName: item.formName,
+        countryName: geographyFromValues(item.data)['country_name']?.toString(),
+        administrativeAreaName: geographyFromValues(
+          item.data,
+        )['administrative_area_name']?.toString(),
+        administrativeAreaType: geographyFromValues(
+          item.data,
+        )['administrative_area_type']?.toString(),
       ),
       ...submissions.where((entry) => entry.id != item.id),
     ];
@@ -450,6 +458,9 @@ class AppController extends ChangeNotifier {
                     createdAt: item.createdAt,
                     reviewNote: note,
                     formName: item.formName,
+                    countryName: item.countryName,
+                    administrativeAreaName: item.administrativeAreaName,
+                    administrativeAreaType: item.administrativeAreaType,
                   )
                 : item,
           )
@@ -564,9 +575,16 @@ class AppController extends ChangeNotifier {
         formId: draft.formId,
         formVersionId: draft.formVersionId,
         status: status,
-        data: Map<String, dynamic>.from(values),
+        data: submissionDataFromValues(values),
         createdAt: DateTime.now(),
         formName: draft.formName,
+        countryName: geographyFromValues(values)['country_name']?.toString(),
+        administrativeAreaName: geographyFromValues(
+          values,
+        )['administrative_area_name']?.toString(),
+        administrativeAreaType: geographyFromValues(
+          values,
+        )['administrative_area_type']?.toString(),
       ),
       ...submissions,
     ];
@@ -784,9 +802,15 @@ List<SubmissionRecord> _previewSubmissions() {
       reviewNote: index % 4 == 3
           ? 'Please attach a clearer source register.'
           : null,
+      countryName: ['Ghana', 'Senegal', 'Kenya', 'Zambia'][index % 4],
+      administrativeAreaName: [
+        'Tamale',
+        'Dakar',
+        'Kisumu',
+        'Lusaka',
+      ][index % 4],
+      administrativeAreaType: index % 4 == 2 ? 'County' : 'District',
       data: {
-        'country': ['Ghana', 'Senegal', 'Kenya', 'Zambia'][index % 4],
-        'district': ['Tamale', 'Dakar', 'Kisumu', 'Lusaka'][index % 4],
         'site_name': 'Partner site ${index + 1}',
         'women_participants': 14 + index,
         'men_participants': 9 + index,

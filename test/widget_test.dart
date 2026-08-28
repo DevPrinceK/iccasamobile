@@ -47,7 +47,8 @@ void main() {
     });
 
     expect(form.isReady, isTrue);
-    expect(form.requiredCount, 2);
+    expect(form.fieldCount, 4);
+    expect(form.requiredCount, 4);
     expect(form.version!.fields.first.key, 'district');
     expect(form.version!.instructions, 'Verify evidence.');
   });
@@ -112,6 +113,9 @@ void main() {
       'form_id': 9,
       'form_version_id': 29,
       'status': 'queued',
+      'country_name': 'Ghana',
+      'administrative_area_name': 'Tamale Metropolitan District',
+      'administrative_area_type': 'District',
       'data': const {},
       'created_at': DateTime.now().toIso8601String(),
     });
@@ -120,6 +124,8 @@ void main() {
     expect(observer.canReview, isFalse);
     expect(reviewer.avatarUrl, '/api/v1/users/1/avatar?v=2');
     expect(queued.isAwaitingReview, isTrue);
+    expect(queued.countryName, 'Ghana');
+    expect(queued.administrativeAreaName, 'Tamale Metropolitan District');
   });
 
   testWidgets('login exposes the secure sign-in flow', (tester) async {

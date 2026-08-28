@@ -281,6 +281,13 @@ Future<void> _showRecord(
   SubmissionRecord record,
   AppController controller,
 ) async {
+  final displayValues = <String, dynamic>{
+    if (record.countryName?.isNotEmpty ?? false) 'Country': record.countryName,
+    if (record.administrativeAreaName?.isNotEmpty ?? false)
+      record.administrativeAreaType ?? 'District / county':
+          record.administrativeAreaName,
+    ...record.data,
+  };
   await showDialog<void>(
     context: context,
     builder: (dialogContext) => Dialog(
@@ -346,7 +353,7 @@ Future<void> _showRecord(
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 12),
-                  ...record.data.entries.map(
+                  ...displayValues.entries.map(
                     (entry) => Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: DecoratedBox(
