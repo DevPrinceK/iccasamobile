@@ -391,19 +391,17 @@ class LogoMark extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      gradient: const LinearGradient(
-        colors: [AppColors.emerald, AppColors.emeraldDark],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
+  Widget build(BuildContext context) => Semantics(
+    image: true,
+    label: 'ICCASA',
+    child: SizedBox.square(
+      dimension: size,
+      child: Image.asset(
+        'assets/branding/iccasa_app_icon_foreground.png',
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        cacheWidth: (size * 3).round(),
       ),
-      borderRadius: BorderRadius.circular(size * 0.3),
-    ),
-    child: SizedBox(
-      width: size,
-      height: size,
-      child: Icon(Icons.eco_rounded, color: Colors.white, size: size * 0.58),
     ),
   );
 }

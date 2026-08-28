@@ -90,6 +90,17 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                         (filter) => ChoiceChip(
                           label: Text(filter),
                           selected: _filter == filter,
+                          labelStyle:
+                              Theme.of(context).brightness == Brightness.light
+                              ? TextStyle(
+                                  color: _filter == filter
+                                      ? Theme.of(
+                                          context,
+                                        ).colorScheme.onPrimaryContainer
+                                      : Theme.of(context).colorScheme.onSurface,
+                                  fontWeight: FontWeight.w700,
+                                )
+                              : null,
                           onSelected: (_) => setState(() => _filter = filter),
                         ),
                       )

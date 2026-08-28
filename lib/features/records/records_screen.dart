@@ -99,6 +99,20 @@ class _RecordsScreenState extends ConsumerState<RecordsScreen> {
                                         : status.replaceAll('_', ' '),
                                   ),
                                   selected: _status == status,
+                                  labelStyle:
+                                      Theme.of(context).brightness ==
+                                          Brightness.light
+                                      ? TextStyle(
+                                          color: _status == status
+                                              ? Theme.of(
+                                                  context,
+                                                ).colorScheme.onPrimaryContainer
+                                              : Theme.of(
+                                                  context,
+                                                ).colorScheme.onSurface,
+                                          fontWeight: FontWeight.w700,
+                                        )
+                                      : null,
                                   onSelected: (_) => setState(() {
                                     _status = status;
                                     _page = 0;

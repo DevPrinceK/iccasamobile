@@ -5,7 +5,11 @@ import 'package:iccasa_mobile/core/models/field_models.dart';
 import 'package:iccasa_mobile/core/network/api_client.dart';
 import 'package:iccasa_mobile/core/state/app_controller.dart';
 import 'package:iccasa_mobile/core/storage/local_store.dart';
+import 'package:iccasa_mobile/app/theme.dart';
+import 'package:iccasa_mobile/features/assignments/assignments_screen.dart';
 import 'package:iccasa_mobile/features/auth/login_screen.dart';
+import 'package:iccasa_mobile/features/records/records_screen.dart';
+import 'package:iccasa_mobile/features/sync_center/sync_center_screen.dart';
 
 void main() {
   test('published form detail parses server fields in order', () {
@@ -165,6 +169,78 @@ void main() {
     );
     expect(
       find.descendant(of: dialog, matching: find.text('Cancel')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('light theme filter chips retain readable labels', (
+    tester,
+  ) async {
+    final controller = AppController(api: ApiClient(), store: LocalStore())
+      ..stage = AppStage.signedIn
+      ..previewMode = true;
+    final theme = buildLightTheme();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [appControllerProvider.overrideWith((ref) => controller)],
+        child: MaterialApp(theme: theme, home: const AssignmentsScreen()),
+      ),
+    );
+
+    final chips = tester
+        .widgetList<ChoiceChip>(find.byType(ChoiceChip))
+        .toList();
+    expect(chips, hasLength(3));
+    expect(chips.first.labelStyle?.color, theme.colorScheme.onPrimaryContainer);
+    expect(chips[1].labelStyle?.color, theme.colorScheme.onSurface);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [appControllerProvider.overrideWith((ref) => controller)],
+        child: MaterialApp(theme: theme, home: const RecordsScreen()),
+      ),
+    );
+    final recordChips = tester
+        .widgetList<ChoiceChip>(find.byType(ChoiceChip))
+        .toList();
+    expect(recordChips, hasLength(5));
+    expect(
+      recordChips.first.labelStyle?.color,
+      theme.colorScheme.onPrimaryContainer,
+    );
+    expect(recordChips[1].labelStyle?.color, theme.colorScheme.onSurface);
+  });
+
+  testWidgets('manual sync shows progress and completion feedback', (
+    tester,
+  ) async {
+    final controller = AppController(api: ApiClient(), store: LocalStore())
+      ..stage = AppStage.signedIn
+      ..previewMode = true
+      ..isOnline = true;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [appControllerProvider.overrideWith((ref) => controller)],
+        child: MaterialApp(
+          theme: buildLightTheme(),
+          home: const Scaffold(body: SyncCenterScreen()),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Sync now'));
+    await tester.pump();
+    expect(find.text('Syncing...'), findsOneWidget);
+    expect(
+      find.text('Checking assignments and sending queued records...'),
+      findsOneWidget,
+    );
+
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(
+      find.text('Sync complete. Assignments and records are up to date.'),
       findsOneWidget,
     );
   });

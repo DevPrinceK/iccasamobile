@@ -7,12 +7,67 @@ import '../../core/models/field_models.dart';
 import '../../core/state/app_controller.dart';
 import '../../design_system/app_ui.dart';
 
-class SyncCenterScreen extends ConsumerWidget {
+class SyncCenterScreen extends ConsumerStatefulWidget {
   const SyncCenterScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SyncCenterScreen> createState() => _SyncCenterScreenState();
+}
+
+class _SyncCenterScreenState extends ConsumerState<SyncCenterScreen> {
+  bool _manualSyncing = false;
+
+  Future<void> _syncNow(AppController controller) async {
+    if (_manualSyncing || controller.isSyncing) return;
+    final queuedBefore = controller.outbox.length;
+    final stopwatch = Stopwatch()..start();
+    controller.clearError();
+    setState(() => _manualSyncing = true);
+    try {
+      await controller.syncOutbox();
+      await controller.refreshAll(silent: true);
+      const minimumFeedbackTime = Duration(milliseconds: 650);
+      if (stopwatch.elapsed < minimumFeedbackTime) {
+        await Future<void>.delayed(minimumFeedbackTime - stopwatch.elapsed);
+      }
+      if (!mounted) return;
+      final remaining = controller.outbox.length;
+      final error = controller.errorMessage;
+      final message = error != null
+          ? 'Sync incomplete. $error'
+          : remaining > 0
+          ? 'Sync finished with $remaining record${remaining == 1 ? '' : 's'} still queued.'
+          : queuedBefore > 0
+          ? 'Sync complete. $queuedBefore queued record${queuedBefore == 1 ? '' : 's'} uploaded.'
+          : 'Sync complete. Assignments and records are up to date.';
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(
+                  error == null
+                      ? Icons.check_circle_outline_rounded
+                      : Icons.error_outline_rounded,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 10),
+                Expanded(child: Text(message)),
+              ],
+            ),
+          ),
+        );
+    } finally {
+      stopwatch.stop();
+      if (mounted) setState(() => _manualSyncing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final controller = ref.watch(appControllerProvider);
+    final syncing = _manualSyncing || controller.isSyncing;
     return AppPage(
       children: [
         PageHeader(
@@ -22,22 +77,46 @@ class SyncCenterScreen extends ConsumerWidget {
               'See what is stored on this device, retry queued records and keep assignments current.',
           actions: [
             FilledButton.icon(
-              onPressed: controller.isOnline && !controller.isSyncing
-                  ? () async {
-                      await controller.syncOutbox();
-                      await controller.refreshAll(silent: true);
-                    }
+              onPressed: controller.isOnline && !syncing
+                  ? () => _syncNow(controller)
                   : null,
-              icon: controller.isSyncing
+              icon: syncing
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Icon(Icons.sync_rounded),
-              label: Text(controller.isSyncing ? 'Syncing...' : 'Sync now'),
+              label: Text(syncing ? 'Syncing...' : 'Sync now'),
             ),
           ],
+        ),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: syncing
+              ? Padding(
+                  key: const ValueKey('sync-progress'),
+                  padding: const EdgeInsets.only(top: 18),
+                  child: Semantics(
+                    liveRegion: true,
+                    label: 'Synchronizing the ICCASA field workspace',
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        LinearProgressIndicator(),
+                        SizedBox(height: 8),
+                        Text(
+                          'Checking assignments and sending queued records...',
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink(key: ValueKey('sync-idle')),
         ),
         const SizedBox(height: 24),
         _SyncSummary(controller: controller),
