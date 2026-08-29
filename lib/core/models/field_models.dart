@@ -193,10 +193,10 @@ class FieldAssignment {
   final bool isActive;
   final FormVersion? version;
 
-  int get fieldCount => version == null ? 0 : version!.fields.length + 2;
+  int get fieldCount => version == null ? 0 : version!.fields.length + 4;
   int get requiredCount => version == null
       ? 0
-      : version!.fields.where((field) => field.required).length + 2;
+      : version!.fields.where((field) => field.required).length + 3;
   bool get isReady => isActive && version != null && version!.isPublished;
 
   factory FieldAssignment.fromJson(Map<String, dynamic> json) {
@@ -292,6 +292,9 @@ class SubmissionRecord {
     this.countryName,
     this.administrativeAreaName,
     this.administrativeAreaType,
+    this.disabilityStatus,
+    this.disabilityTypes = const [],
+    this.otherDisabilityType,
   });
 
   final String id;
@@ -306,6 +309,9 @@ class SubmissionRecord {
   final String? countryName;
   final String? administrativeAreaName;
   final String? administrativeAreaType;
+  final String? disabilityStatus;
+  final List<String> disabilityTypes;
+  final String? otherDisabilityType;
 
   bool get isAwaitingReview => status == 'queued' || status == 'pending_review';
 
@@ -325,6 +331,11 @@ class SubmissionRecord {
         countryName: json['country_name']?.toString(),
         administrativeAreaName: json['administrative_area_name']?.toString(),
         administrativeAreaType: json['administrative_area_type']?.toString(),
+        disabilityStatus: json['disability_status']?.toString(),
+        disabilityTypes: (json['disability_types'] as List? ?? const [])
+            .map((item) => item.toString())
+            .toList(),
+        otherDisabilityType: json['other_disability_type']?.toString(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -340,6 +351,9 @@ class SubmissionRecord {
     'country_name': countryName,
     'administrative_area_name': administrativeAreaName,
     'administrative_area_type': administrativeAreaType,
+    'disability_status': disabilityStatus,
+    'disability_types': disabilityTypes,
+    'other_disability_type': otherDisabilityType,
   };
 }
 

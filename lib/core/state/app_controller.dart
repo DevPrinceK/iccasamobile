@@ -11,6 +11,7 @@ import '../config/app_config.dart';
 import '../models/field_models.dart';
 import '../network/api_client.dart';
 import '../services/geography_repository.dart';
+import '../services/disability_metadata.dart';
 import '../storage/local_store.dart';
 
 final appControllerProvider = ChangeNotifierProvider<AppController>((ref) {
@@ -399,6 +400,14 @@ class AppController extends ChangeNotifier {
         administrativeAreaType: geographyFromValues(
           item.data,
         )['administrative_area_type']?.toString(),
+        disabilityStatus: disabilityFromValues(item.data)['status']?.toString(),
+        disabilityTypes:
+            (disabilityFromValues(item.data)['types'] as List? ?? const [])
+                .map((value) => value.toString())
+                .toList(),
+        otherDisabilityType: disabilityFromValues(
+          item.data,
+        )['other_type']?.toString(),
       ),
       ...submissions.where((entry) => entry.id != item.id),
     ];
@@ -461,6 +470,9 @@ class AppController extends ChangeNotifier {
                     countryName: item.countryName,
                     administrativeAreaName: item.administrativeAreaName,
                     administrativeAreaType: item.administrativeAreaType,
+                    disabilityStatus: item.disabilityStatus,
+                    disabilityTypes: item.disabilityTypes,
+                    otherDisabilityType: item.otherDisabilityType,
                   )
                 : item,
           )
@@ -585,6 +597,14 @@ class AppController extends ChangeNotifier {
         administrativeAreaType: geographyFromValues(
           values,
         )['administrative_area_type']?.toString(),
+        disabilityStatus: disabilityFromValues(values)['status']?.toString(),
+        disabilityTypes:
+            (disabilityFromValues(values)['types'] as List? ?? const [])
+                .map((value) => value.toString())
+                .toList(),
+        otherDisabilityType: disabilityFromValues(
+          values,
+        )['other_type']?.toString(),
       ),
       ...submissions,
     ];

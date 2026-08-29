@@ -117,6 +117,11 @@ class AssignmentDetailScreen extends ConsumerWidget {
                       const SizedBox(height: 16),
                       const _SystemFieldPreview(label: 'Country'),
                       const _SystemFieldPreview(label: 'District / county'),
+                      const _SystemFieldPreview(label: 'Disability status'),
+                      const _SystemFieldPreview(
+                        label: 'Type(s) of disability',
+                        conditional: true,
+                      ),
                       ...fields.map((field) => _FieldPreview(field: field)),
                     ],
                   ),
@@ -275,9 +280,10 @@ class _FieldPreview extends StatelessWidget {
 }
 
 class _SystemFieldPreview extends StatelessWidget {
-  const _SystemFieldPreview({required this.label});
+  const _SystemFieldPreview({required this.label, this.conditional = false});
 
   final String label;
+  final bool conditional;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -288,7 +294,9 @@ class _SystemFieldPreview extends StatelessWidget {
           radius: 19,
           backgroundColor: Theme.of(context).colorScheme.primaryContainer,
           child: Icon(
-            Icons.location_on_outlined,
+            label.toLowerCase().contains('disability')
+                ? Icons.accessible_forward_rounded
+                : Icons.location_on_outlined,
             size: 19,
             color: Theme.of(context).colorScheme.onPrimaryContainer,
           ),
@@ -297,7 +305,10 @@ class _SystemFieldPreview extends StatelessWidget {
         Expanded(
           child: Text(label, style: Theme.of(context).textTheme.labelLarge),
         ),
-        const StatusBadge('Required', color: AppColors.coral),
+        StatusBadge(
+          conditional ? 'Conditional' : 'Required',
+          color: conditional ? AppColors.blue : AppColors.coral,
+        ),
       ],
     ),
   );

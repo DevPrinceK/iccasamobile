@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/models/field_models.dart';
+import '../../core/services/disability_metadata.dart';
 import '../../core/state/app_controller.dart';
 import '../../design_system/app_ui.dart';
 
@@ -286,6 +287,14 @@ Future<void> _showRecord(
     if (record.administrativeAreaName?.isNotEmpty ?? false)
       record.administrativeAreaType ?? 'District / county':
           record.administrativeAreaName,
+    if (record.disabilityStatus?.isNotEmpty ?? false)
+      'Disability status': disabilityStatusLabel(record.disabilityStatus),
+    if (record.disabilityStatus?.isNotEmpty ?? false)
+      'Type(s) of disability': disabilityTypeLabels({
+        'status': record.disabilityStatus,
+        'types': record.disabilityTypes,
+        'other_type': record.otherDisabilityType,
+      }).join(', '),
     ...record.data,
   };
   await showDialog<void>(

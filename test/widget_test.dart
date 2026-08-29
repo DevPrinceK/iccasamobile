@@ -47,8 +47,8 @@ void main() {
     });
 
     expect(form.isReady, isTrue);
-    expect(form.fieldCount, 4);
-    expect(form.requiredCount, 4);
+    expect(form.fieldCount, 6);
+    expect(form.requiredCount, 5);
     expect(form.version!.fields.first.key, 'district');
     expect(form.version!.instructions, 'Verify evidence.');
   });
@@ -116,6 +116,8 @@ void main() {
       'country_name': 'Ghana',
       'administrative_area_name': 'Tamale Metropolitan District',
       'administrative_area_type': 'District',
+      'disability_status': 'self-identified disability',
+      'disability_types': ['visual', 'hearing'],
       'data': const {},
       'created_at': DateTime.now().toIso8601String(),
     });
@@ -126,6 +128,8 @@ void main() {
     expect(queued.isAwaitingReview, isTrue);
     expect(queued.countryName, 'Ghana');
     expect(queued.administrativeAreaName, 'Tamale Metropolitan District');
+    expect(queued.disabilityStatus, 'self-identified disability');
+    expect(queued.disabilityTypes, ['visual', 'hearing']);
   });
 
   testWidgets('login exposes the secure sign-in flow', (tester) async {

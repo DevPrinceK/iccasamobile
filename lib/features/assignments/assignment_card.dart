@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/field_models.dart';
 import '../../core/services/geography_repository.dart';
+import '../../core/services/disability_metadata.dart';
 import '../../design_system/app_ui.dart';
 
 class AssignmentCard extends StatelessWidget {
@@ -33,13 +34,17 @@ class AssignmentCard extends StatelessWidget {
     final geography = draft == null
         ? const <String, dynamic>{}
         : geographyFromValues(draft!.values);
+    final disability = draft == null
+        ? const <String, dynamic>{}
+        : disabilityFromValues(draft!.values);
     final completed =
         completedCustom +
         (geography['country_code']?.toString().isNotEmpty ?? false ? 1 : 0) +
-        (geographyIsComplete(geography) ? 1 : 0);
-    final progress = assignment.fieldCount == 0
-        ? 0.0
-        : completed / assignment.fieldCount;
+        (geographyIsComplete(geography) ? 1 : 0) +
+        (disability['status']?.toString().isNotEmpty ?? false ? 1 : 0) +
+        (disabilityIsComplete(disability) ? 1 : 0);
+    final totalFields = assignment.fieldCount;
+    final progress = totalFields == 0 ? 0.0 : completed / totalFields;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(

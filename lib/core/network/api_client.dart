@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import '../config/app_config.dart';
 import '../models/field_models.dart';
 import '../services/geography_repository.dart';
+import '../services/disability_metadata.dart';
 
 class ApiException implements Exception {
   const ApiException(this.message, {this.statusCode});
@@ -265,6 +266,7 @@ class ApiClient {
     try {
       final submissionData = Map<String, dynamic>.from(data);
       final geography = submissionData.remove(geographyValueKey);
+      final disability = submissionData.remove(disabilityValueKey);
       final response = await _authenticated(
         () => _dio.post<Map<String, dynamic>>(
           '/forms/$formId/submissions',
@@ -274,6 +276,7 @@ class ApiClient {
             'device_id': deviceId,
             'client_submission_id': clientSubmissionId,
             'geography': geography,
+            'disability': disability,
             'data': submissionData,
           },
         ),

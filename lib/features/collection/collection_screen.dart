@@ -12,9 +12,11 @@ import '../../app/theme.dart';
 import '../../core/models/field_models.dart';
 import '../../core/network/api_client.dart';
 import '../../core/services/geography_repository.dart';
+import '../../core/services/disability_metadata.dart';
 import '../../core/state/app_controller.dart';
 import '../../design_system/app_ui.dart';
 import 'geography_section.dart';
+import 'disability_section.dart';
 
 class CollectionScreen extends ConsumerStatefulWidget {
   const CollectionScreen({
@@ -97,6 +99,20 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     });
   }
 
+  void _setDisability(Map<String, dynamic> value) {
+    _setValue(disabilityValueKey, value);
+    setState(() {
+      if (value['status']?.toString().isNotEmpty ?? false) {
+        _missingKeys.remove(disabilityStatusErrorKey);
+      }
+      if (disabilityIsComplete(value)) {
+        _missingKeys
+          ..remove(disabilityTypesErrorKey)
+          ..remove(disabilityOtherTypeErrorKey);
+      }
+    });
+  }
+
   Future<void> _saveNow() async {
     if (_draft == null) return;
     await ref.read(appControllerProvider).updateDraft(_draft!.id, _values);
@@ -110,11 +126,22 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
         .map((field) => field.key)
         .toSet();
     final geography = geographyFromValues(_values);
+    final disability = disabilityFromValues(_values);
     if (geography['country_code']?.toString().isEmpty ?? true) {
       missing.add(geographyCountryErrorKey);
     }
     if (!geographyIsComplete(geography)) {
       missing.add(geographyAreaErrorKey);
+    }
+    if (disability['status']?.toString().isEmpty ?? true) {
+      missing.add(disabilityStatusErrorKey);
+    } else if (!disabilityIsComplete(disability)) {
+      final types = (disability['types'] as List? ?? const []);
+      if (types.isEmpty) missing.add(disabilityTypesErrorKey);
+      if (types.map((item) => item.toString()).contains(otherDisabilityType) &&
+          (disability['other_type']?.toString().trim().length ?? 0) < 2) {
+        missing.add(disabilityOtherTypeErrorKey);
+      }
     }
     if (missing.isNotEmpty) {
       setState(() {
@@ -208,11 +235,14 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     }
     final fields = assignment.version!.fields;
     final geography = geographyFromValues(_values);
+    final disability = disabilityFromValues(_values);
     final completed =
         fields.where((field) => !_isEmpty(_values[field.key])).length +
         (geography['country_code']?.toString().isNotEmpty ?? false ? 1 : 0) +
-        (geographyIsComplete(geography) ? 1 : 0);
-    final totalFields = fields.length + 2;
+        (geographyIsComplete(geography) ? 1 : 0) +
+        (disability['status']?.toString().isNotEmpty ?? false ? 1 : 0) +
+        (disabilityIsComplete(disability) ? 1 : 0);
+    final totalFields = fields.length + 4;
     final progress = completed / totalFields;
     final tablet = MediaQuery.sizeOf(context).width >= 850;
     return Scaffold(
@@ -259,6 +289,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                 values: _values,
                 missing: _missingKeys,
                 geography: geography,
+                disability: disability,
               ),
             Expanded(
               child: CustomScrollView(
@@ -321,11 +352,25 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                                 ),
                               ),
                               const SizedBox(height: 16),
+                              DisabilitySection(
+                                value: disability,
+                                onChanged: _setDisability,
+                                statusError: _missingKeys.contains(
+                                  disabilityStatusErrorKey,
+                                ),
+                                typesError: _missingKeys.contains(
+                                  disabilityTypesErrorKey,
+                                ),
+                                otherTypeError: _missingKeys.contains(
+                                  disabilityOtherTypeErrorKey,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
                               ...fields.indexed.map(
                                 (entry) => Padding(
                                   padding: const EdgeInsets.only(bottom: 16),
                                   child: _FieldCard(
-                                    index: entry.$1 + 2,
+                                    index: entry.$1 + 4,
                                     field: entry.$2,
                                     value: _values[entry.$2.key],
                                     textController:
@@ -401,12 +446,14 @@ class _ProgressRail extends StatelessWidget {
     required this.values,
     required this.missing,
     required this.geography,
+    required this.disability,
   });
 
   final List<FieldDefinition> fields;
   final Map<String, dynamic> values;
   final Set<String> missing;
   final Map<String, dynamic> geography;
+  final Map<String, dynamic> disability;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -434,11 +481,25 @@ class _ProgressRail extends StatelessWidget {
           complete: geographyIsComplete(geography),
           error: missing.contains(geographyAreaErrorKey),
         ),
+        _ProgressEntry(
+          index: 3,
+          label: 'Disability status',
+          complete: disability['status']?.toString().isNotEmpty ?? false,
+          error: missing.contains(disabilityStatusErrorKey),
+        ),
+        _ProgressEntry(
+          index: 4,
+          label: 'Type(s) of disability',
+          complete: disabilityIsComplete(disability),
+          error:
+              missing.contains(disabilityTypesErrorKey) ||
+              missing.contains(disabilityOtherTypeErrorKey),
+        ),
         ...fields.indexed.map((entry) {
           final complete = !_isEmpty(values[entry.$2.key]);
           final error = missing.contains(entry.$2.key);
           return _ProgressEntry(
-            index: entry.$1 + 3,
+            index: entry.$1 + 5,
             label: entry.$2.label,
             complete: complete,
             error: error,
