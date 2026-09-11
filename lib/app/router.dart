@@ -119,7 +119,7 @@ class LaunchScreen extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          LogoMark(size: 64),
+          BrandLogo(width: 190),
           SizedBox(height: 20),
           Text(
             'ICCASA Field',

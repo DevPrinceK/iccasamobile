@@ -156,6 +156,20 @@ class AppController extends ChangeNotifier {
     } on ApiException catch (error) {
       errorMessage = error.message;
       return false;
+    } catch (_) {
+      _api.setSession(null, null);
+      _accessToken = null;
+      _refreshToken = null;
+      user = null;
+      stage = AppStage.signedOut;
+      try {
+        await _store.clearSession();
+      } catch (_) {
+        // Preserve the actionable sign-in error if local cleanup also fails.
+      }
+      errorMessage =
+          'Sign-in could not be completed on this device. Please try again.';
+      return false;
     } finally {
       isBusy = false;
       notifyListeners();
@@ -259,7 +273,7 @@ class AppController extends ChangeNotifier {
       } on ApiException catch (error) {
         refreshError ??= error;
       }
-      if (assignments.isNotEmpty || submissions.isNotEmpty) {
+      if (refreshError == null) {
         lastSyncedAt = DateTime.now();
         if (outbox.isNotEmpty) await syncOutbox();
       }
@@ -351,14 +365,16 @@ class AppController extends ChangeNotifier {
       return true;
     }
 
+    var queuedValues = Map<String, dynamic>.from(values);
     if (isOnline) {
       try {
+        queuedValues = await _prepareUploads(values);
         final submitted = await _api.submit(
           formId: draft.formId,
           formVersionId: draft.formVersionId,
           clientSubmissionId: draft.id,
           deviceId: deviceId,
-          data: await _prepareUploads(values),
+          data: queuedValues,
         );
         drafts = drafts.where((item) => item.id != id).toList();
         submissions = [
@@ -370,6 +386,8 @@ class AppController extends ChangeNotifier {
         return true;
       } on ApiException catch (error) {
         if (error.statusCode != null && error.statusCode! < 500) rethrow;
+      } catch (_) {
+        // Preserve the record locally when preparation fails unexpectedly.
       }
     }
 
@@ -378,7 +396,7 @@ class AppController extends ChangeNotifier {
       formId: draft.formId,
       formVersionId: draft.formVersionId,
       formName: draft.formName,
-      data: Map<String, dynamic>.from(values),
+      data: queuedValues,
       createdAt: DateTime.now(),
     );
     drafts = drafts.where((entry) => entry.id != id).toList();
@@ -393,7 +411,13 @@ class AppController extends ChangeNotifier {
         createdAt: item.createdAt,
         localState: LocalRecordState.queued,
         formName: item.formName,
+        submittedByName: user?.name,
+        submittedByEmail: user?.email,
+        countryCode: geographyFromValues(item.data)['country_code']?.toString(),
         countryName: geographyFromValues(item.data)['country_name']?.toString(),
+        administrativeAreaCode: geographyFromValues(
+          item.data,
+        )['administrative_area_code']?.toString(),
         administrativeAreaName: geographyFromValues(
           item.data,
         )['administrative_area_name']?.toString(),
@@ -422,35 +446,51 @@ class AppController extends ChangeNotifier {
     errorMessage = null;
     notifyListeners();
     final remaining = <OutboxItem>[];
-    for (final item in outbox.reversed) {
-      try {
-        final submitted = await _api.submit(
-          formId: item.formId,
-          formVersionId: item.formVersionId,
-          clientSubmissionId: item.id,
-          deviceId: deviceId,
-          data: await _prepareUploads(item.data),
-        );
-        submissions = [
-          submitted,
-          ...submissions.where(
-            (record) => record.id != item.id && record.id != submitted.id,
-          ),
-        ];
-      } on ApiException catch (error) {
-        remaining.add(
-          item.copyWith(attempts: item.attempts + 1, lastError: error.message),
-        );
+    try {
+      for (final item in outbox.reversed) {
+        var preparedData = item.data;
+        try {
+          preparedData = await _prepareUploads(item.data);
+          final submitted = await _api.submit(
+            formId: item.formId,
+            formVersionId: item.formVersionId,
+            clientSubmissionId: item.id,
+            deviceId: deviceId,
+            data: preparedData,
+          );
+          submissions = [
+            submitted,
+            ...submissions.where(
+              (record) => record.id != item.id && record.id != submitted.id,
+            ),
+          ];
+        } catch (error) {
+          remaining.add(
+            OutboxItem(
+              id: item.id,
+              formId: item.formId,
+              formVersionId: item.formVersionId,
+              formName: item.formName,
+              data: Map<String, dynamic>.from(preparedData),
+              createdAt: item.createdAt,
+              attempts: item.attempts + 1,
+              lastError: _syncError(error),
+            ),
+          );
+        }
       }
+      outbox = remaining.reversed.toList();
+      lastSyncedAt = DateTime.now();
+      if (outbox.isNotEmpty) {
+        errorMessage = '${outbox.length} record(s) still need attention.';
+      }
+      await _persistOperationalData();
+    } catch (_) {
+      errorMessage = 'Local sync data could not be saved. Please try again.';
+    } finally {
+      isSyncing = false;
+      notifyListeners();
     }
-    outbox = remaining.reversed.toList();
-    lastSyncedAt = DateTime.now();
-    isSyncing = false;
-    if (outbox.isNotEmpty) {
-      errorMessage = '${outbox.length} record(s) still need attention.';
-    }
-    await _persistOperationalData();
-    notifyListeners();
   }
 
   Future<void> review(String id, String status, {String? note}) async {
@@ -467,7 +507,12 @@ class AppController extends ChangeNotifier {
                     createdAt: item.createdAt,
                     reviewNote: note,
                     formName: item.formName,
+                    submittedByName: item.submittedByName,
+                    submittedByEmail: item.submittedByEmail,
+                    source: item.source,
+                    countryCode: item.countryCode,
                     countryName: item.countryName,
+                    administrativeAreaCode: item.administrativeAreaCode,
                     administrativeAreaName: item.administrativeAreaName,
                     administrativeAreaType: item.administrativeAreaType,
                     disabilityStatus: item.disabilityStatus,
@@ -560,6 +605,8 @@ class AppController extends ChangeNotifier {
     user = null;
     assignments = [];
     submissions = [];
+    drafts = [];
+    outbox = [];
     stage = AppStage.signedOut;
     errorMessage = 'Your session expired. Sign in again to continue.';
     await _store.clearSession();
@@ -590,7 +637,13 @@ class AppController extends ChangeNotifier {
         data: submissionDataFromValues(values),
         createdAt: DateTime.now(),
         formName: draft.formName,
+        submittedByName: user?.name,
+        submittedByEmail: user?.email,
+        countryCode: geographyFromValues(values)['country_code']?.toString(),
         countryName: geographyFromValues(values)['country_name']?.toString(),
+        administrativeAreaCode: geographyFromValues(
+          values,
+        )['administrative_area_code']?.toString(),
         administrativeAreaName: geographyFromValues(
           values,
         )['administrative_area_name']?.toString(),
@@ -646,6 +699,14 @@ class AppController extends ChangeNotifier {
       }
     }
     return prepared;
+  }
+
+  String _syncError(Object error) {
+    if (error is ApiException) return error.message;
+    if (error is FormatException) {
+      return 'An attachment is damaged. Reopen the record and replace it.';
+    }
+    return 'This record could not be prepared for sync. Please try again.';
   }
 
   ThemeMode _parseThemeMode(String value) => ThemeMode.values.firstWhere(
@@ -818,11 +879,20 @@ List<SubmissionRecord> _previewSubmissions() {
       formVersionId: 1101 + (index % 4),
       status: statuses[index % statuses.length],
       formName: _previewAssignments()[index % 4].name,
+      submittedByName: 'Abena Mensah',
+      submittedByEmail: 'abena.mensah@iccasa.local',
       createdAt: now.subtract(Duration(hours: index * 7)),
       reviewNote: index % 4 == 3
           ? 'Please attach a clearer source register.'
           : null,
+      countryCode: ['GH', 'SN', 'KE', 'ZM'][index % 4],
       countryName: ['Ghana', 'Senegal', 'Kenya', 'Zambia'][index % 4],
+      administrativeAreaCode: [
+        'GH.NP.TAMALE',
+        'SN.DK.DAKAR',
+        'KE.30',
+        'ZM.09.LUSAKA',
+      ][index % 4],
       administrativeAreaName: [
         'Tamale',
         'Dakar',

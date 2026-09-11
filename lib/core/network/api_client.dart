@@ -75,7 +75,8 @@ class ApiClient {
       );
       final data = response.data ?? const <String, dynamic>{};
       final token = data['access_token']?.toString() ?? '';
-      final refreshToken = _readRefreshToken(response);
+      final refreshToken =
+          _readRefreshToken(response) ?? _nonEmptyString(data['refresh_token']);
       if (token.isEmpty || refreshToken == null || data['user'] is! Map) {
         throw const ApiException(
           'The server returned an incomplete sign-in response.',
@@ -219,12 +220,35 @@ class ApiClient {
   Future<List<FieldAssignment>> getForms() async {
     try {
       final response = await _authenticated(() => _dio.get<dynamic>('/forms'));
-      return _listPayload(response.data)
+      final forms = _listPayload(response.data)
           .whereType<Map>()
           .map(
             (item) => FieldAssignment.fromJson(Map<String, dynamic>.from(item)),
           )
           .toList();
+      final hydrated = <FieldAssignment>[];
+      const batchSize = 6;
+      for (var start = 0; start < forms.length; start += batchSize) {
+        final end = (start + batchSize).clamp(0, forms.length);
+        hydrated.addAll(
+          await Future.wait(
+            forms.sublist(start, end).map((form) async {
+              if (form.version != null) return form;
+              try {
+                final detail = await _authenticated(
+                  () => _dio.get<Map<String, dynamic>>('/forms/${form.id}'),
+                );
+                return FieldAssignment.fromJson(
+                  detail.data ?? const <String, dynamic>{},
+                );
+              } on DioException {
+                return form;
+              }
+            }),
+          ),
+        );
+      }
+      return hydrated;
     } on DioException catch (error) {
       throw _mapError(error, fallback: 'Collection forms could not be loaded.');
     }
@@ -391,7 +415,8 @@ class ApiClient {
       );
       final data = response.data ?? const <String, dynamic>{};
       final accessToken = data['access_token']?.toString() ?? '';
-      final refreshedToken = _readRefreshToken(response);
+      final refreshedToken =
+          _readRefreshToken(response) ?? _nonEmptyString(data['refresh_token']);
       final rawUser = data['user'];
       if (accessToken.isEmpty || refreshedToken == null || rawUser is! Map) {
         setSession(null, null);
@@ -402,9 +427,12 @@ class ApiClient {
       setSession(accessToken, refreshedToken);
       await onSessionRefreshed?.call(accessToken, refreshedToken, user);
       return true;
-    } on DioException {
-      setSession(null, null);
-      await onSessionExpired?.call();
+    } on DioException catch (error) {
+      final status = error.response?.statusCode;
+      if (status == 400 || status == 401 || status == 403) {
+        setSession(null, null);
+        await onSessionExpired?.call();
+      }
       return false;
     }
   }
@@ -419,6 +447,11 @@ class ApiClient {
       if (value != null && value.isNotEmpty) return Uri.decodeComponent(value);
     }
     return null;
+  }
+
+  String? _nonEmptyString(Object? value) {
+    final text = value?.toString() ?? '';
+    return text.isEmpty || text == 'null' ? null : text;
   }
 
   List<dynamic> _listPayload(Object? body) {

@@ -144,27 +144,24 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                   : constraints.maxWidth >= 650
                   ? 2
                   : 1;
-              return GridView.builder(
-                itemCount: filtered.length,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  crossAxisSpacing: 14,
-                  mainAxisSpacing: 14,
-                  childAspectRatio: columns == 1 ? 1.65 : 1.75,
-                ),
-                itemBuilder: (context, index) {
-                  final assignment = filtered[index];
+              final cardWidth =
+                  (constraints.maxWidth - (14 * (columns - 1))) / columns;
+              return Wrap(
+                spacing: 14,
+                runSpacing: 14,
+                children: filtered.map((assignment) {
                   final draft = controller.drafts
                       .where((item) => item.formId == assignment.id)
                       .firstOrNull;
-                  return AssignmentCard(
-                    assignment: assignment,
-                    draft: draft,
-                    onOpen: () => context.go('/assignments/${assignment.id}'),
+                  return SizedBox(
+                    width: cardWidth,
+                    child: AssignmentCard(
+                      assignment: assignment,
+                      draft: draft,
+                      onOpen: () => context.go('/assignments/${assignment.id}'),
+                    ),
                   );
-                },
+                }).toList(),
               );
             },
           ),

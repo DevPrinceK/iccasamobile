@@ -243,7 +243,7 @@ class SettingsScreen extends ConsumerWidget {
                         title: 'Language',
                         value: 'English',
                       ),
-                      const _SettingRow(
+                      _SettingRow(
                         icon: Icons.info_outline_rounded,
                         title: 'App version',
                         value: AppConfig.appVersion,
@@ -320,14 +320,14 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
     if (source == null) return;
-    final image = await ImagePicker().pickImage(
-      source: source,
-      maxWidth: 1400,
-      maxHeight: 1400,
-      imageQuality: 88,
-    );
-    if (image == null) return;
     try {
+      final image = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 1400,
+        maxHeight: 1400,
+        imageQuality: 88,
+      );
+      if (image == null) return;
       await controller.updateProfilePhoto(
         filename: image.name,
         bytes: await image.readAsBytes(),
@@ -339,6 +339,13 @@ class SettingsScreen extends ConsumerWidget {
       }
     } on ApiException catch (error) {
       if (context.mounted) _showProfileError(context, error.message);
+    } catch (_) {
+      if (context.mounted) {
+        _showProfileError(
+          context,
+          'The selected profile photo could not be opened. Please try another image.',
+        );
+      }
     }
   }
 

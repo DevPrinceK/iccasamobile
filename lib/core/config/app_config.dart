@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 abstract final class AppConfig {
   static const apiUrl = String.fromEnvironment(
@@ -6,7 +7,7 @@ abstract final class AppConfig {
     defaultValue: 'https://iccasa.pkaylabs.com/api/v1',
   );
 
-  static const appVersion = '1.1.0';
+  static String appVersion = '1.1.4 (6)';
 
   static const deviceName = String.fromEnvironment(
     'ICCASA_DEVICE_ID',
@@ -14,6 +15,17 @@ abstract final class AppConfig {
   );
 
   static bool get showPreviewAccess => kDebugMode;
+
+  static Future<void> initialize() async {
+    try {
+      final package = await PackageInfo.fromPlatform();
+      appVersion = package.buildNumber.isEmpty
+          ? package.version
+          : '${package.version} (${package.buildNumber})';
+    } catch (_) {
+      // The fallback remains available in tests and unsupported environments.
+    }
+  }
 
   static String absoluteUrl(String value) {
     final uri = Uri.tryParse(value);

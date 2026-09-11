@@ -72,18 +72,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             if (!wide) ...[
-                              const Row(
-                                children: [
-                                  LogoMark(),
-                                  SizedBox(width: 10),
-                                  Text(
-                                    'ICCASA Field',
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ],
+                              const Align(
+                                alignment: Alignment.centerLeft,
+                                child: BrandLogo(width: 174),
                               ),
                               const SizedBox(height: 44),
                             ],
@@ -438,9 +429,18 @@ class _PasswordResetDialogState extends State<_PasswordResetDialog> {
                   controller: _confirmation,
                   obscureText: _obscure,
                   onSubmitted: (_) => _continue(),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Confirm new password',
-                    prefixIcon: Icon(Icons.verified_user_outlined),
+                    prefixIcon: const Icon(Icons.verified_user_outlined),
+                    suffixIcon: IconButton(
+                      tooltip: _obscure ? 'Show passwords' : 'Hide passwords',
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                      icon: Icon(
+                        _obscure
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -508,20 +508,7 @@ class _LoginStoryPanel extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
-              children: [
-                LogoMark(size: 48),
-                SizedBox(width: 14),
-                Text(
-                  'ICCASA Field',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
+            const BrandLogo(width: 190, darkBackground: true),
             const Spacer(),
             const StatusBadge(
               'Offline-ready',

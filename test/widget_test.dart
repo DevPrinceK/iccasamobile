@@ -3,12 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iccasa_mobile/core/models/field_models.dart';
 import 'package:iccasa_mobile/core/network/api_client.dart';
+import 'package:iccasa_mobile/core/services/geography_repository.dart';
 import 'package:iccasa_mobile/core/state/app_controller.dart';
 import 'package:iccasa_mobile/core/storage/local_store.dart';
 import 'package:iccasa_mobile/app/theme.dart';
+import 'package:iccasa_mobile/design_system/components/submission_response_value.dart';
+import 'package:iccasa_mobile/features/assignments/assignment_detail_screen.dart';
 import 'package:iccasa_mobile/features/assignments/assignments_screen.dart';
 import 'package:iccasa_mobile/features/auth/login_screen.dart';
+import 'package:iccasa_mobile/features/collection/collection_screen.dart';
+import 'package:iccasa_mobile/features/dashboard/dashboard_screen.dart';
 import 'package:iccasa_mobile/features/records/records_screen.dart';
+import 'package:iccasa_mobile/features/review/review_screen.dart';
+import 'package:iccasa_mobile/features/settings/settings_screen.dart';
 import 'package:iccasa_mobile/features/sync_center/sync_center_screen.dart';
 
 void main() {
@@ -254,4 +261,198 @@ void main() {
       findsOneWidget,
     );
   });
+
+  test('checkbox false is a recorded response rather than a missing value', () {
+    expect(isResponseEmpty(false), isFalse);
+    expect(isResponseEmpty(0), isFalse);
+    expect(isResponseEmpty(''), isTrue);
+    expect(isResponseEmpty(const []), isTrue);
+  });
+
+  test('correction values retain geography and disability metadata', () {
+    final record = SubmissionRecord.fromJson({
+      'id': 91,
+      'form_id': 9,
+      'form_version_id': 29,
+      'status': 'rejected',
+      'submitted_by_name': 'Prince Kyeremanteng',
+      'submitted_by_email': 'prince@example.org',
+      'country_code': 'GH',
+      'country_name': 'Ghana',
+      'administrative_area_code': 'GH.12.702',
+      'administrative_area_name': 'Asunafo North',
+      'administrative_area_type': 'District',
+      'disability_status': 'self-identified disability',
+      'disability_types': ['physical_mobility', 'other'],
+      'other_disability_type': 'Chronic pain-related impairment',
+      'data': {'result': 12},
+      'created_at': DateTime.now().toIso8601String(),
+    });
+
+    final values = submissionValuesForCorrection(record);
+
+    expect(values['result'], 12);
+    expect(values[geographyValueKey]['country_code'], 'GH');
+    expect(values[geographyValueKey]['administrative_area_code'], 'GH.12.702');
+    expect(values['__disability']['types'], ['physical_mobility', 'other']);
+    expect(record.submittedByName, 'Prince Kyeremanteng');
+  });
+
+  test(
+    'sync always leaves its busy state after malformed local evidence',
+    () async {
+      final controller = AppController(api: ApiClient(), store: _MemoryStore())
+        ..stage = AppStage.signedIn
+        ..isOnline = true
+        ..outbox = [
+          OutboxItem(
+            id: 'local-1',
+            formId: 7,
+            formVersionId: 12,
+            formName: 'Site visit',
+            data: {
+              'signature': {
+                'filename': 'signature.png',
+                '_upload_bytes': 'not-valid-base64',
+              },
+            },
+            createdAt: DateTime.now(),
+          ),
+        ];
+
+      await controller.syncOutbox();
+
+      expect(controller.isSyncing, isFalse);
+      expect(controller.outbox, hasLength(1));
+      expect(controller.outbox.single.attempts, 1);
+      expect(controller.outbox.single.lastError, isNotEmpty);
+    },
+  );
+
+  testWidgets('signature evidence is compact, expandable and identifies signer', (
+    tester,
+  ) async {
+    const onePixelPng =
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildLightTheme(),
+        home: const Scaffold(
+          body: SubmissionResponseValue(
+            label: 'signature',
+            value: {
+              'filename': 'signature-1.png',
+              'content_type': 'image/png',
+              '_upload_bytes': onePixelPng,
+            },
+            signedBy: 'Prince Kyeremanteng',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Signed by Prince Kyeremanteng'), findsOneWidget);
+    expect(find.text('Tap image to expand'), findsOneWidget);
+    await tester.tap(find.byType(InkWell));
+    await tester.pumpAndSettle();
+    expect(find.text('Captured signature'), findsOneWidget);
+  });
+
+  testWidgets(
+    'assignment list remains usable on a narrow phone at large text',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(360, 740);
+      addTearDown(tester.view.reset);
+      final controller = AppController(api: ApiClient(), store: _MemoryStore());
+      await controller.enterPreview();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [appControllerProvider.overrideWith((ref) => controller)],
+          child: MaterialApp(
+            theme: buildLightTheme(),
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: const TextScaler.linear(1.3)),
+              child: child!,
+            ),
+            home: const Scaffold(body: AssignmentsScreen()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Assignments'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('core workflows render without overflow on phone and tablet', (
+    tester,
+  ) async {
+    final controller = AppController(api: ApiClient(), store: _MemoryStore());
+    await controller.enterPreview();
+    addTearDown(tester.view.reset);
+
+    Future<void> pumpScreen(
+      Widget screen,
+      Size size, {
+      double textScale = 1,
+    }) async {
+      tester.view
+        ..devicePixelRatio = 1
+        ..physicalSize = size;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [appControllerProvider.overrideWith((ref) => controller)],
+          child: MaterialApp(
+            theme: buildLightTheme(),
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: child!,
+            ),
+            home: Scaffold(body: screen),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: '${screen.runtimeType} overflowed at ${size.width} px',
+      );
+    }
+
+    const phone = Size(360, 740);
+    const tablet = Size(1024, 768);
+    final screens = <Widget>[
+      const DashboardScreen(),
+      const AssignmentsScreen(),
+      const AssignmentDetailScreen(formId: 101),
+      const CollectionScreen(formId: 101, draftId: null),
+      const RecordsScreen(),
+      const ReviewScreen(),
+      const SyncCenterScreen(),
+      const SettingsScreen(),
+    ];
+    for (final screen in screens) {
+      await pumpScreen(screen, phone, textScale: 1.3);
+      await pumpScreen(screen, tablet);
+    }
+  });
+}
+
+class _MemoryStore extends LocalStore {
+  @override
+  Future<void> saveDrafts(List<DraftRecord> values) async {}
+
+  @override
+  Future<void> saveOutbox(List<OutboxItem> values) async {}
+
+  @override
+  Future<void> saveSubmissions(List<SubmissionRecord> values) async {}
 }

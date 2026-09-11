@@ -289,7 +289,12 @@ class SubmissionRecord {
     this.reviewNote,
     this.localState = LocalRecordState.synced,
     this.formName,
+    this.submittedByName,
+    this.submittedByEmail,
+    this.source = 'field',
+    this.countryCode,
     this.countryName,
+    this.administrativeAreaCode,
     this.administrativeAreaName,
     this.administrativeAreaType,
     this.disabilityStatus,
@@ -306,7 +311,12 @@ class SubmissionRecord {
   final String? reviewNote;
   final LocalRecordState localState;
   final String? formName;
+  final String? submittedByName;
+  final String? submittedByEmail;
+  final String source;
+  final String? countryCode;
   final String? countryName;
+  final String? administrativeAreaCode;
   final String? administrativeAreaName;
   final String? administrativeAreaType;
   final String? disabilityStatus;
@@ -328,7 +338,12 @@ class SubmissionRecord {
         reviewNote: json['review_note']?.toString(),
         localState: _recordState(json['local_state']?.toString()),
         formName: json['form_name']?.toString(),
+        submittedByName: json['submitted_by_name']?.toString(),
+        submittedByEmail: json['submitted_by_email']?.toString(),
+        source: json['source']?.toString() ?? 'field',
+        countryCode: json['country_code']?.toString(),
         countryName: json['country_name']?.toString(),
+        administrativeAreaCode: json['administrative_area_code']?.toString(),
         administrativeAreaName: json['administrative_area_name']?.toString(),
         administrativeAreaType: json['administrative_area_type']?.toString(),
         disabilityStatus: json['disability_status']?.toString(),
@@ -348,7 +363,12 @@ class SubmissionRecord {
     'review_note': reviewNote,
     'local_state': localState.name,
     'form_name': formName,
+    'submitted_by_name': submittedByName,
+    'submitted_by_email': submittedByEmail,
+    'source': source,
+    'country_code': countryCode,
     'country_name': countryName,
+    'administrative_area_code': administrativeAreaCode,
     'administrative_area_name': administrativeAreaName,
     'administrative_area_type': administrativeAreaType,
     'disability_status': disabilityStatus,
@@ -434,10 +454,22 @@ String encodeJsonList<T>(
 
 List<Map<String, dynamic>> decodeJsonList(String? source) {
   if (source == null || source.isEmpty) return const [];
-  final decoded = jsonDecode(source);
-  if (decoded is! List) return const [];
-  return decoded
-      .whereType<Map>()
-      .map((item) => Map<String, dynamic>.from(item))
-      .toList();
+  try {
+    final decoded = jsonDecode(source);
+    if (decoded is! List) return const [];
+    return decoded
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  } on FormatException {
+    return const [];
+  }
+}
+
+bool isResponseEmpty(Object? value) {
+  if (value == null) return true;
+  if (value is String) return value.trim().isEmpty;
+  if (value is Map) return value.isEmpty;
+  if (value is Iterable) return value.isEmpty;
+  return false;
 }

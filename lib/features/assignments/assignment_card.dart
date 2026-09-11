@@ -26,9 +26,7 @@ class AssignmentCard extends StatelessWidget {
         ? 0
         : assignment.version?.fields.where((field) {
                 final value = draft!.values[field.key];
-                return value != null &&
-                    value.toString().trim().isNotEmpty &&
-                    value != false;
+                return !isResponseEmpty(value);
               }).length ??
               0;
     final geography = draft == null

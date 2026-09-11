@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/theme.dart';
 import '../../core/models/field_models.dart';
 import '../../core/network/api_client.dart';
+import '../../core/services/disability_metadata.dart';
 import '../../core/state/app_controller.dart';
 import '../../design_system/app_ui.dart';
+import '../../design_system/components/submission_response_value.dart';
 
 class ReviewScreen extends ConsumerStatefulWidget {
   const ReviewScreen({super.key});
@@ -77,22 +79,23 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                   : constraints.maxWidth >= 640
                   ? 2
                   : 1;
-              return GridView.builder(
-                itemCount: records.length,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  crossAxisSpacing: 14,
-                  mainAxisSpacing: 14,
-                  childAspectRatio: columns == 1
-                      ? 1.75
-                      : columns == 2
-                      ? 1.55
-                      : 1.25,
-                ),
-                itemBuilder: (context, index) =>
-                    _ReviewCard(record: records[index], controller: controller),
+              const spacing = 14.0;
+              final cardWidth =
+                  (constraints.maxWidth - spacing * (columns - 1)) / columns;
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: records
+                    .map(
+                      (record) => SizedBox(
+                        width: cardWidth,
+                        child: _ReviewCard(
+                          record: record,
+                          controller: controller,
+                        ),
+                      ),
+                    )
+                    .toList(),
               );
             },
           ),
@@ -118,14 +121,17 @@ class _ReviewCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 const StatusBadge(
                   'Pending review',
                   icon: Icons.schedule_rounded,
                   color: AppColors.amber,
                 ),
-                const Spacer(),
                 Text(
                   '#${record.id}',
                   style: Theme.of(context).textTheme.labelMedium,
@@ -144,7 +150,7 @@ class _ReviewCard extends StatelessWidget {
               '${record.data.length} responses  |  ${relativeTime(record.createdAt)}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
-            const Spacer(),
+            const SizedBox(height: 18),
             Row(
               children: [
                 Expanded(
@@ -174,6 +180,21 @@ Future<void> _openReview(
   SubmissionRecord record,
   AppController controller,
 ) async {
+  final displayValues = <String, dynamic>{
+    if (record.countryName?.isNotEmpty ?? false) 'Country': record.countryName,
+    if (record.administrativeAreaName?.isNotEmpty ?? false)
+      record.administrativeAreaType ?? 'District / county':
+          record.administrativeAreaName,
+    if (record.disabilityStatus?.isNotEmpty ?? false)
+      'Disability status': disabilityStatusLabel(record.disabilityStatus),
+    if (record.disabilityStatus?.isNotEmpty ?? false)
+      'Type(s) of disability': disabilityTypeLabels({
+        'status': record.disabilityStatus,
+        'types': record.disabilityTypes,
+        'other_type': record.otherDisabilityType,
+      }).join(', '),
+    ...record.data,
+  };
   await showDialog<void>(
     context: context,
     builder: (dialogContext) => Dialog(
@@ -224,14 +245,20 @@ Future<void> _openReview(
                         color: Theme.of(context).colorScheme.secondary,
                       ),
                       StatusBadge(
-                        '${record.data.length} responses',
+                        '${displayValues.length} responses',
                         icon: Icons.format_list_bulleted_rounded,
                         color: Theme.of(context).colorScheme.secondary,
                       ),
+                      if (record.submittedByName?.isNotEmpty ?? false)
+                        StatusBadge(
+                          record.submittedByName!,
+                          icon: Icons.person_outline_rounded,
+                          color: Theme.of(context).colorScheme.secondary,
+                        ),
                     ],
                   ),
                   const SizedBox(height: 22),
-                  ...record.data.entries.map(
+                  ...displayValues.entries.map(
                     (entry) => Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: SectionCard(
@@ -251,10 +278,11 @@ Future<void> _openReview(
                                   ),
                             ),
                             const SizedBox(height: 6),
-                            Text(
-                              _reviewValue(entry.value),
-                              style: Theme.of(context).textTheme.bodyLarge
-                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            SubmissionResponseValue(
+                              label: entry.key,
+                              value: entry.value,
+                              authorizationHeaders: controller.avatarHeaders,
+                              signedBy: record.submittedByName,
                             ),
                           ],
                         ),
@@ -388,19 +416,3 @@ String _reviewLabel(String value) => value
           part.isEmpty ? part : '${part[0].toUpperCase()}${part.substring(1)}',
     )
     .join(' ');
-
-String _reviewValue(dynamic value) {
-  if (value == null) return 'Not provided';
-  if (value is bool) return value ? 'Yes' : 'No';
-  if (value is Map) {
-    if (value['latitude'] != null) {
-      return '${value['latitude']}, ${value['longitude']}';
-    }
-    if (value['filename'] != null) return 'Evidence file: ${value['filename']}';
-    return value.entries
-        .map((entry) => '${entry.key}: ${entry.value}')
-        .join(', ');
-  }
-  if (value is Iterable) return value.join(', ');
-  return value.toString();
-}

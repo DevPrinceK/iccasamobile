@@ -4,8 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/models/field_models.dart';
 import '../../core/services/disability_metadata.dart';
+import '../../core/services/geography_repository.dart';
 import '../../core/state/app_controller.dart';
 import '../../design_system/app_ui.dart';
+import '../../design_system/components/submission_response_value.dart';
 
 class RecordsScreen extends ConsumerStatefulWidget {
   const RecordsScreen({super.key});
@@ -354,6 +356,12 @@ Future<void> _showRecord(
                         icon: Icons.assignment_outlined,
                         color: Theme.of(context).colorScheme.secondary,
                       ),
+                      if (record.submittedByName?.isNotEmpty ?? false)
+                        StatusBadge(
+                          record.submittedByName!,
+                          icon: Icons.person_outline_rounded,
+                          color: Theme.of(context).colorScheme.secondary,
+                        ),
                     ],
                   ),
                   const SizedBox(height: 22),
@@ -387,10 +395,16 @@ Future<void> _showRecord(
                                     ),
                               ),
                               const SizedBox(height: 5),
-                              Text(
-                                _displayValue(entry.value),
-                                style: Theme.of(context).textTheme.bodyLarge
-                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              SubmissionResponseValue(
+                                label: entry.key,
+                                value: entry.value,
+                                authorizationHeaders: controller.avatarHeaders,
+                                signedBy:
+                                    record.submittedByName ??
+                                    (record.localState ==
+                                            LocalRecordState.synced
+                                        ? null
+                                        : controller.user?.name),
                               ),
                             ],
                           ),
@@ -422,7 +436,8 @@ Future<void> _showRecord(
                       );
                       if (assignment == null) return;
                       final draft = controller.beginDraft(assignment);
-                      await controller.updateDraft(draft.id, record.data);
+                      final values = submissionValuesForCorrection(record);
+                      await controller.updateDraft(draft.id, values);
                       if (dialogContext.mounted) Navigator.pop(dialogContext);
                       if (context.mounted) {
                         context.go(
@@ -450,19 +465,3 @@ String _label(String value) => value
           part.isEmpty ? part : '${part[0].toUpperCase()}${part.substring(1)}',
     )
     .join(' ');
-
-String _displayValue(dynamic value) {
-  if (value == null) return 'Not provided';
-  if (value is bool) return value ? 'Yes' : 'No';
-  if (value is Map) {
-    if (value['latitude'] != null) {
-      return '${value['latitude']}, ${value['longitude']}';
-    }
-    if (value['filename'] != null) return value['filename'].toString();
-    return value.entries
-        .map((entry) => '${entry.key}: ${entry.value}')
-        .join(', ');
-  }
-  if (value is Iterable) return value.join(', ');
-  return value.toString();
-}

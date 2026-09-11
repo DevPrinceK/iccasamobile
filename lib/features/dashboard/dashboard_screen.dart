@@ -64,46 +64,52 @@ class DashboardScreen extends ConsumerWidget {
                 : constraints.maxWidth >= 580
                 ? 2
                 : 1;
-            return GridView.count(
-              crossAxisCount: columns,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 14,
-              mainAxisSpacing: 14,
-              childAspectRatio: columns == 1
-                  ? 2.1
-                  : columns == 2
-                  ? 2.35
-                  : 1.6,
+            final cardWidth =
+                (constraints.maxWidth - (14 * (columns - 1))) / columns;
+            return Wrap(
+              spacing: 14,
+              runSpacing: 14,
               children: [
-                MetricCard(
-                  label: 'Assigned forms',
-                  value: '${controller.assignments.length}',
-                  icon: Icons.assignment_outlined,
-                  caption: 'Available on this device',
+                SizedBox(
+                  width: cardWidth,
+                  child: MetricCard(
+                    label: 'Assigned forms',
+                    value: '${controller.assignments.length}',
+                    icon: Icons.assignment_outlined,
+                    caption: 'Available on this device',
+                  ),
                 ),
-                MetricCard(
-                  label: 'Drafts in progress',
-                  value: '${controller.drafts.length}',
-                  icon: Icons.edit_note_rounded,
-                  accent: AppColors.blue,
-                  caption: 'Saved automatically',
+                SizedBox(
+                  width: cardWidth,
+                  child: MetricCard(
+                    label: 'Drafts in progress',
+                    value: '${controller.drafts.length}',
+                    icon: Icons.edit_note_rounded,
+                    accent: AppColors.blue,
+                    caption: 'Saved automatically',
+                  ),
                 ),
-                MetricCard(
-                  label: 'Queued to sync',
-                  value: '${controller.outbox.length}',
-                  icon: Icons.cloud_upload_outlined,
-                  accent: AppColors.amber,
-                  caption: controller.outbox.isEmpty
-                      ? 'Everything is current'
-                      : 'Will retry when online',
+                SizedBox(
+                  width: cardWidth,
+                  child: MetricCard(
+                    label: 'Queued to sync',
+                    value: '${controller.outbox.length}',
+                    icon: Icons.cloud_upload_outlined,
+                    accent: AppColors.amber,
+                    caption: controller.outbox.isEmpty
+                        ? 'Everything is current'
+                        : 'Will retry when online',
+                  ),
                 ),
-                MetricCard(
-                  label: 'Accepted records',
-                  value: '${controller.acceptedCount}',
-                  icon: Icons.verified_outlined,
-                  accent: AppColors.emerald,
-                  caption: 'Verified by reviewers',
+                SizedBox(
+                  width: cardWidth,
+                  child: MetricCard(
+                    label: 'Accepted records',
+                    value: '${controller.acceptedCount}',
+                    icon: Icons.verified_outlined,
+                    accent: AppColors.emerald,
+                    caption: 'Verified by reviewers',
+                  ),
                 ),
               ],
             );

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../models/field_models.dart';
 import 'disability_metadata.dart';
 
 const geographyValueKey = '__geography';
@@ -109,6 +110,24 @@ Map<String, dynamic> submissionDataFromValues(Map<String, dynamic> values) =>
     Map<String, dynamic>.from(values)
       ..remove(geographyValueKey)
       ..remove(disabilityValueKey);
+
+Map<String, dynamic> submissionValuesForCorrection(SubmissionRecord record) => {
+  ...record.data,
+  if (record.countryCode?.isNotEmpty ?? false)
+    geographyValueKey: {
+      'country_code': record.countryCode,
+      'country_name': record.countryName,
+      'administrative_area_code': record.administrativeAreaCode,
+      'administrative_area_name': record.administrativeAreaName,
+      'administrative_area_type': record.administrativeAreaType,
+    },
+  if (record.disabilityStatus?.isNotEmpty ?? false)
+    disabilityValueKey: {
+      'status': record.disabilityStatus,
+      'types': record.disabilityTypes,
+      'other_type': record.otherDisabilityType,
+    },
+};
 
 bool geographyIsComplete(Map<String, dynamic> value) =>
     (value['country_code']?.toString().isNotEmpty ?? false) &&

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,10 +52,27 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     _assignment = controller.assignmentById(widget.formId);
     if (_assignment != null) {
       _draft = widget.draftId == null
-          ? controller.beginDraft(_assignment!)
+          ? controller.drafts
+                .where((draft) => draft.formId == widget.formId)
+                .firstOrNull
           : controller.draftById(widget.draftId!);
-      _draft ??= controller.beginDraft(_assignment!);
-      _values = Map<String, dynamic>.from(_draft!.values);
+      if (_draft != null) {
+        _values = Map<String, dynamic>.from(_draft!.values);
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || _assignment == null) return;
+          final draft = ref
+              .read(appControllerProvider)
+              .beginDraft(_assignment!);
+          setState(() {
+            _draft = draft;
+            _values = Map<String, dynamic>.from(draft.values);
+            for (final entry in _textControllers.entries) {
+              entry.value.text = _values[entry.key]?.toString() ?? '';
+            }
+          });
+        });
+      }
       for (final field
           in _assignment!.version?.fields ?? const <FieldDefinition>[]) {
         if (_usesTextInput(field)) {
@@ -84,7 +102,10 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
       _isSaving = true;
     });
     _saveDebounce?.cancel();
-    _saveDebounce = Timer(const Duration(milliseconds: 500), _saveNow);
+    _saveDebounce = Timer(
+      const Duration(milliseconds: 500),
+      () => unawaited(_saveNow()),
+    );
   }
 
   void _setGeography(Map<String, dynamic> value) {
@@ -113,16 +134,28 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     });
   }
 
-  Future<void> _saveNow() async {
-    if (_draft == null) return;
-    await ref.read(appControllerProvider).updateDraft(_draft!.id, _values);
-    if (mounted) setState(() => _isSaving = false);
+  Future<bool> _saveNow() async {
+    if (_draft == null) return false;
+    try {
+      await ref.read(appControllerProvider).updateDraft(_draft!.id, _values);
+      if (mounted) setState(() => _isSaving = false);
+      return true;
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+          _formError =
+              'This draft could not be saved on the device. Check available storage and try again.';
+        });
+      }
+      return false;
+    }
   }
 
   Future<void> _submit() async {
     final fields = _assignment?.version?.fields ?? const <FieldDefinition>[];
     final missing = fields
-        .where((field) => field.required && _isEmpty(_values[field.key]))
+        .where((field) => field.required && isResponseEmpty(_values[field.key]))
         .map((field) => field.key)
         .toSet();
     final geography = geographyFromValues(_values);
@@ -158,7 +191,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
       );
       return;
     }
-    await _saveNow();
+    if (!await _saveNow()) return;
     if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
@@ -213,8 +246,9 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   }
 
   Future<void> _close() async {
-    await _saveNow();
-    if (mounted) context.go('/assignments/${widget.formId}');
+    if (await _saveNow() && mounted) {
+      context.go('/assignments/${widget.formId}');
+    }
   }
 
   @override
@@ -237,7 +271,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     final geography = geographyFromValues(_values);
     final disability = disabilityFromValues(_values);
     final completed =
-        fields.where((field) => !_isEmpty(_values[field.key])).length +
+        fields.where((field) => !isResponseEmpty(_values[field.key])).length +
         (geography['country_code']?.toString().isNotEmpty ?? false ? 1 : 0) +
         (geographyIsComplete(geography) ? 1 : 0) +
         (disability['status']?.toString().isNotEmpty ?? false ? 1 : 0) +
@@ -245,6 +279,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     final totalFields = fields.length + 4;
     final progress = completed / totalFields;
     final tablet = MediaQuery.sizeOf(context).width >= 850;
+    final narrowPhone = MediaQuery.sizeOf(context).width < 420;
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -427,7 +462,11 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                           )
                         : const Icon(Icons.send_rounded),
                     label: Text(
-                      _isSubmitting ? 'Submitting...' : 'Review and submit',
+                      _isSubmitting
+                          ? 'Submitting...'
+                          : narrowPhone
+                          ? 'Submit'
+                          : 'Review and submit',
                     ),
                   ),
                 ),
@@ -496,7 +535,7 @@ class _ProgressRail extends StatelessWidget {
               missing.contains(disabilityOtherTypeErrorKey),
         ),
         ...fields.indexed.map((entry) {
-          final complete = !_isEmpty(values[entry.$2.key]);
+          final complete = !isResponseEmpty(values[entry.$2.key]);
           final error = missing.contains(entry.$2.key);
           return _ProgressEntry(
             index: entry.$1 + 5,
@@ -935,6 +974,11 @@ class _DynamicInputState extends State<_DynamicInput> {
 
   Widget _signatureInput(BuildContext context) {
     final signed = widget.value is Map;
+    final signature = signed
+        ? Map<String, dynamic>.from(widget.value as Map)
+        : const <String, dynamic>{};
+    final encoded = signature['_upload_bytes']?.toString();
+    final signatureBytes = _tryDecodeBase64(encoded);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -946,7 +990,21 @@ class _DynamicInputState extends State<_DynamicInput> {
           label: Text(signed ? 'Replace signature' : 'Capture signature'),
         ),
         if (signed) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
+          if (signatureBytes != null)
+            Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.memory(
+                  signatureBytes,
+                  width: 180,
+                  height: 84,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) => const Icon(Icons.draw_outlined),
+                ),
+              ),
+            ),
+          const SizedBox(height: 6),
           Text(
             'Signature captured',
             textAlign: TextAlign.center,
@@ -966,13 +1024,17 @@ class _DynamicInputState extends State<_DynamicInput> {
       penColor: Colors.black,
       exportBackgroundColor: Colors.white,
     );
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final canvasHeight = (screenHeight * 0.36).clamp(150.0, 260.0);
     final bytes = await showDialog<List<int>?>(
       context: context,
       builder: (context) => AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        scrollable: true,
         title: const Text('Capture signature'),
         content: SizedBox(
           width: 520,
-          height: 260,
+          height: canvasHeight,
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -1017,6 +1079,15 @@ class _DynamicInputState extends State<_DynamicInput> {
   }
 }
 
+Uint8List? _tryDecodeBase64(String? value) {
+  if (value == null || value.isEmpty) return null;
+  try {
+    return base64Decode(value);
+  } on FormatException {
+    return null;
+  }
+}
+
 bool _usesTextInput(FieldDefinition field) {
   final type = field.normalizedType;
   return !(type.contains('checkbox') ||
@@ -1032,11 +1103,4 @@ bool _usesTextInput(FieldDefinition field) {
       type.contains('image') ||
       type.contains('file') ||
       type.contains('signature'));
-}
-
-bool _isEmpty(dynamic value) {
-  if (value == null || value == false) return true;
-  if (value is String) return value.trim().isEmpty;
-  if (value is Map || value is Iterable) return value.isEmpty;
-  return false;
 }

@@ -354,15 +354,9 @@ class _RailBrand extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(12, 12, 12, 26),
     child: extended
-        ? const Row(
-            children: [
-              LogoMark(),
-              SizedBox(width: 10),
-              Text(
-                'ICCASA Field',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-              ),
-            ],
+        ? const Align(
+            alignment: Alignment.centerLeft,
+            child: BrandLogo(width: 158),
           )
         : const LogoMark(),
   );
@@ -372,17 +366,40 @@ class _CompactBrand extends StatelessWidget {
   const _CompactBrand();
 
   @override
-  Widget build(BuildContext context) => const Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      LogoMark(size: 34),
-      SizedBox(width: 9),
-      Text(
-        'ICCASA Field',
-        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+  Widget build(BuildContext context) => const BrandLogo(width: 124);
+}
+
+class BrandLogo extends StatelessWidget {
+  const BrandLogo({super.key, this.width = 158, this.darkBackground = false});
+
+  final double width;
+  final bool darkBackground;
+
+  @override
+  Widget build(BuildContext context) {
+    final needsLightSurface =
+        darkBackground || Theme.of(context).brightness == Brightness.dark;
+    return Semantics(
+      image: true,
+      label: 'ICCASA',
+      child: Container(
+        width: width,
+        padding: needsLightSurface ? const EdgeInsets.all(4) : EdgeInsets.zero,
+        decoration: needsLightSurface
+            ? BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(7),
+              )
+            : null,
+        child: Image.asset(
+          'assets/branding/iccasa_logo.png',
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          cacheWidth: (width * 3).round(),
+        ),
       ),
-    ],
-  );
+    );
+  }
 }
 
 class LogoMark extends StatelessWidget {
