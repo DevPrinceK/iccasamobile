@@ -111,6 +111,28 @@ class ApiClient {
     }
   }
 
+  Future<void> registerPushDevice(String token, String platform) async {
+    await _authenticated(
+      () => _dio.post<void>(
+        '/operations/push-devices',
+        data: {'token': token, 'platform': platform},
+      ),
+    );
+  }
+
+  Future<void> unregisterPushDevice(String token, String platform) async {
+    await _authenticated(
+      () => _dio.delete<void>(
+        '/operations/push-devices',
+        data: {'token': token, 'platform': platform},
+        options: Options(
+          sendTimeout: const Duration(seconds: 4),
+          receiveTimeout: const Duration(seconds: 4),
+        ),
+      ),
+    );
+  }
+
   Future<String?> requestPasswordReset(String email) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(

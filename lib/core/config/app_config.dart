@@ -7,7 +7,7 @@ abstract final class AppConfig {
     defaultValue: 'https://iccasa.pkaylabs.com/api/v1',
   );
 
-  static String appVersion = '1.1.4 (6)';
+  static String appVersion = '1.1.5 (7)';
 
   static const deviceName = String.fromEnvironment(
     'ICCASA_DEVICE_ID',

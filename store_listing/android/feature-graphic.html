@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ICCASA Field feature graphic</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 1024px; height: 500px; overflow: hidden; }
+    body { font-family: Arial, Helvetica, sans-serif; }
+    .graphic {
+      position: relative;
+      width: 1024px;
+      height: 500px;
+      overflow: hidden;
+      color: #fff;
+      background: linear-gradient(125deg, #0b3c34 0%, #087b65 58%, #0b564e 100%);
+    }
+    .graphic::before {
+      content: "";
+      position: absolute;
+      right: -154px;
+      top: -216px;
+      width: 628px;
+      height: 628px;
+      border: 82px solid rgba(255,255,255,.08);
+      border-radius: 50%;
+    }
+    .graphic::after {
+      content: "";
+      position: absolute;
+      right: -160px;
+      bottom: -222px;
+      width: 520px;
+      height: 520px;
+      border-radius: 50%;
+      background: rgba(4,48,50,.42);
+    }
+    .gold { position: absolute; width: 350px; height: 132px; right: -53px; bottom: 11px;
+      transform: rotate(-24deg); border-radius: 180px 10px 180px 10px;
+      background: #ffcd24; z-index: 1; }
+    .gold::after { content: ""; position: absolute; left: 32px; top: 66px;
+      width: 280px; height: 5px; border-radius: 6px; background: #0c775d;
+      transform: rotate(-10deg); }
+    .content { position: relative; z-index: 2; padding: 35px 54px; }
+    .brand { display: flex; align-items: center; gap: 19px; }
+    .logo { display: flex; align-items: center; justify-content: center;
+      width: 194px; height: 76px; padding: 8px 10px; border-radius: 12px; background: #fff; }
+    .logo img { display: block; width: 174px; height: auto; }
+    .brand-name { font-size: 21px; font-weight: 700; letter-spacing: .01em; }
+    .eyebrow { margin: 39px 0 13px; color: #b3f4df; font-size: 16px;
+      font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 0; max-width: 715px; font-size: 53px; line-height: 1.08;
+      letter-spacing: -.035em; font-weight: 800; }
+    .rule { width: 60px; height: 5px; margin: 23px 0 19px; border-radius: 4px; background: #ffcd24; }
+    .support { margin: 0; color: #e9fff7; font-size: 20px; line-height: 1.42; font-weight: 500; }
+    .corner { position: absolute; z-index: 2; right: 32px; top: 28px;
+      width: 75px; height: 75px; border: 2px solid rgba(255,255,255,.2);
+      border-radius: 21px; transform: rotate(14deg); }
+  </style>
+</head>
+<body>
+  <main class="graphic">
+    <div class="gold"></div><div class="corner"></div>
+    <div class="content">
+      <div class="brand">
+        <div class="logo"><img src="../../assets/branding/iccasa_logo.png" alt="ICCASA"></div>
+        <div class="brand-name">ICCASA Field</div>
+      </div>
+      <div class="eyebrow">Field collection workspace</div>
+      <h1>Evidence for inclusive<br>climate action.</h1>
+      <div class="rule"></div>
+      <p class="support">Guided forms &nbsp;|&nbsp; Offline collection &nbsp;|&nbsp; Secure sync</p>
+    </div>
+  </main>
+</body>
+</html>

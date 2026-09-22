@@ -11,6 +11,7 @@ import '../config/app_config.dart';
 import '../models/field_models.dart';
 import '../network/api_client.dart';
 import '../services/geography_repository.dart';
+import '../services/push_notifications.dart';
 import '../services/disability_metadata.dart';
 import '../storage/local_store.dart';
 
@@ -26,9 +27,11 @@ class AppController extends ChangeNotifier {
       _store = store {
     _api.onSessionRefreshed = _handleSessionRefresh;
     _api.onSessionExpired = _expireSession;
+    pushNotifications = PushNotifications(_api);
   }
 
   final ApiClient _api;
+  late final PushNotifications pushNotifications;
   final LocalStore _store;
   final Connectivity _connectivity = Connectivity();
   final Uuid _uuid = const Uuid();
@@ -108,6 +111,9 @@ class AppController extends ChangeNotifier {
             );
             stage = AppStage.signedIn;
             await refreshAll(silent: true);
+            if (stage == AppStage.signedIn) {
+              unawaited(pushNotifications.start());
+            }
           } on ApiException catch (error) {
             if (error.statusCode == 401) {
               await _store.clearSession();
@@ -152,6 +158,7 @@ class AppController extends ChangeNotifier {
       stage = AppStage.signedIn;
       notifyListeners();
       await refreshAll(silent: true);
+      if (stage == AppStage.signedIn) unawaited(pushNotifications.start());
       return true;
     } on ApiException catch (error) {
       errorMessage = error.message;
@@ -568,6 +575,7 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    await pushNotifications.stop();
     if (!previewMode) await _api.logout();
     await _store.clearSession();
     _accessToken = null;
@@ -600,6 +608,7 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> _expireSession() async {
+    await pushNotifications.stop(unregister: false);
     _accessToken = null;
     _refreshToken = null;
     user = null;
@@ -619,6 +628,7 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     if (!wasOnline && isOnline && stage == AppStage.signedIn) {
       unawaited(refreshAll(silent: true));
+      if (!previewMode) unawaited(pushNotifications.start());
     }
   }
 
@@ -717,6 +727,7 @@ class AppController extends ChangeNotifier {
   @override
   void dispose() {
     _connectivitySubscription?.cancel();
+    pushNotifications.dispose();
     super.dispose();
   }
 }

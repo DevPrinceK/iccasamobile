@@ -1,0 +1,1 @@
+Updated field collection experience with guided forms, offline drafts, review status, and secure sync. Includes ICCASA branding and push notification support when configured by the organization.

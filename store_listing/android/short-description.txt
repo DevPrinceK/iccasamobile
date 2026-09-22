@@ -1,0 +1,1 @@
+Collect inclusive climate data offline and sync securely with ICCASA.

@@ -1,0 +1,15 @@
+ICCASA Field is the mobile collection workspace for the ICCASA monitoring and evaluation platform. It helps authorized field staff gather reliable, inclusive evidence wherever their work takes them.
+
+Open forms assigned to your account and review their collection requirements.
+
+Complete guided surveys with country, district or county, and disability information where relevant.
+
+Capture location, photos, and signatures when a form requests them.
+
+Save drafts and continue collection without a network connection.
+
+Review submitted records and see their review status.
+
+Sync queued work securely when connectivity returns.
+
+ICCASA Field is an organization-managed app. Access is provided by ICCASA or a participating organization. A platform account and assigned forms are needed for live collection.

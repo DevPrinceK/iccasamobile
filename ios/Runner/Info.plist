@@ -30,6 +30,11 @@
 	<string>ICCASA Field captures location only when a form requires site verification.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>ICCASA Field can attach existing evidence images to a collection record.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

@@ -39,3 +39,14 @@ flutter build apk --debug --dart-define=ICCASA_API_URL=http://10.0.2.2:8002/api/
 
 The split release build produces separate `armeabi-v7a`, `arm64-v8a`, and
 `x86_64` APKs. Most current phones and tablets use the `arm64-v8a` package.
+
+## Push notifications
+
+Firebase Cloud Messaging is integrated for Android and iOS. Register the Android
+package `org.iccasa.iccasa_mobile` in ICCASA's Firebase project and place its
+`google-services.json` in `android/app/`. Place the iOS
+`GoogleService-Info.plist` in `ios/Runner/`, enable Push Notifications and
+Background Modes in Xcode, and upload an APNs key to Firebase. The local Firebase
+files are Git-ignored. Without them, the app still builds and runs, but push
+notifications remain unavailable. The API/worker setup is described in the
+backend's `docs/push-notifications.md`.
